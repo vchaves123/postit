@@ -1,0 +1,19 @@
+# Eclipse
+.metadata/
+bin/
+tmp/
+.settings/
+.classpath
+.project
+
+# Build
+target/
+build/
+out/
+*.class
+*.jar
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
