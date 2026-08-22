@@ -36,6 +36,20 @@ Clique com o botão direito em qualquer parte da nota para o menu de contexto.
 O texto salva sozinho meio segundo depois da última tecla, e também ao mover, redimensionar
 ou perder o foco — não existe botão de salvar.
 
+## Iniciar com o Windows
+
+```bash
+powershell -ExecutionPolicy Bypass -File install-startup.ps1
+```
+
+Cria `postit.lnk` na pasta Inicializar do usuário, apontando direto para `javaw.exe` com o jar
+(sem janela de console). Requer o jar já compilado; se você mover o repositório, rode o script
+de novo. Para desfazer:
+
+```bash
+powershell -ExecutionPolicy Bypass -File uninstall-startup.ps1
+```
+
 ## Onde as notas ficam
 
 `~/.postit/notes/<uuid>.properties` — um arquivo por nota, texto e geometria juntos. Escrever
@@ -53,3 +67,4 @@ brigando pelos mesmos arquivos.
 | [NoteStore.java](src/main/java/com/postit/NoteStore.java) | leitura e gravação em `~/.postit` |
 | [Palette.java](src/main/java/com/postit/Palette.java) | as 6 cores |
 | [Icons.java](src/main/java/com/postit/Icons.java) | ícone da bandeja, desenhado em runtime |
+| [install-startup.ps1](install-startup.ps1) · [uninstall-startup.ps1](uninstall-startup.ps1) | atalho na pasta Inicializar do Windows |
