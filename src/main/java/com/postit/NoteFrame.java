@@ -53,6 +53,8 @@ public final class NoteFrame extends JFrame {
 
         void saveNote(Note note);
 
+        void openSettings(NoteFrame origin);
+
         void showAll();
 
         void quit();
@@ -217,6 +219,7 @@ public final class NoteFrame extends JFrame {
         bind("control D", () -> host.deleteNote(this));
         bind("control E", this::cycleColor);
         bind("control T", this::togglePin);
+        bind("control COMMA", () -> host.openSettings(this));
         bind("control shift A", host::showAll);
         bind("control Q", host::quit);
     }
@@ -341,6 +344,7 @@ public final class NoteFrame extends JFrame {
         menu.add(item(note.alwaysOnTop() ? "Soltar do topo" : "Fixar no topo", this::togglePin));
         menu.addSeparator();
         menu.add(item("Mostrar todas as notas", host::showAll));
+        menu.add(item("Configuracoes...", () -> host.openSettings(this)));
         menu.addSeparator();
         menu.add(item("Apagar esta nota", () -> host.deleteNote(this)));
         menu.add(item("Sair do postit", host::quit));

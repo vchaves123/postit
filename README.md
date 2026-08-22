@@ -29,6 +29,7 @@ No Linux/macOS, use `./postit.sh`.
 | Fixar/soltar no topo | botão `●`/`○` ou `Ctrl+T` |
 | Apagar a nota | botão `×` ou `Ctrl+D` (pede confirmação se tiver texto) |
 | Mostrar todas as notas | `Ctrl+Shift+A` ou clique no ícone da bandeja |
+| Configurações | `Ctrl+,`, menu da bandeja, ou menu de contexto |
 | Sair | `Ctrl+Q` ou o menu da bandeja |
 
 Clique com o botão direito em qualquer parte da nota para o menu de contexto.
@@ -38,17 +39,32 @@ ou perder o foco — não existe botão de salvar.
 
 ## Iniciar com o Windows
 
+Abra **Configurações** (menu da bandeja, botão direito na nota, ou `Ctrl+,`) e marque
+**"Iniciar o postit com o Windows"**. Não precisa rodar nada por fora — a caixa reflete o
+estado real do sistema, e desmarcar desfaz.
+
+Por baixo é um atalho `postit.lnk` na pasta Inicializar do usuário, apontando para `javaw.exe`
+com o jar (sem janela de console). Se você mover a pasta do postit, desmarque e marque de novo
+para reapontar.
+
+Para instalação automatizada (sem abrir a interface) os mesmos arquivos podem ser criados por
+script — é o mesmo `postit.lnk`, então os dois caminhos nunca conflitam:
+
 ```bash
 powershell -ExecutionPolicy Bypass -File install-startup.ps1
 ```
 
-Cria `postit.lnk` na pasta Inicializar do usuário, apontando direto para `javaw.exe` com o jar
-(sem janela de console). Requer o jar já compilado; se você mover o repositório, rode o script
-de novo. Para desfazer:
-
 ```bash
 powershell -ExecutionPolicy Bypass -File uninstall-startup.ps1
 ```
+
+### Por que atalho e não a chave `Run` do registro
+
+A chave `HKCU\...\CurrentVersion\Run` seria o caminho óbvio, mas gravar ali um caminho de
+executável entre aspas **a partir de um processo Java** é barrado pela proteção do Windows: o
+`CreateProcess` do `reg.exe` volta com `Access is denied`, e depois disso todo `reg.exe` daquele
+processo é negado. O atalho na pasta Inicializar passa limpo, aparece em "Aplicativos de
+inicialização" nas configurações do Windows e é I/O puro para consultar e remover.
 
 ## Onde as notas ficam
 
@@ -65,6 +81,8 @@ brigando pelos mesmos arquivos.
 | [NoteFrame.java](src/main/java/com/postit/NoteFrame.java) | a janela da nota: arrastar, redimensionar, atalhos, autosave |
 | [Note.java](src/main/java/com/postit/Note.java) | o modelo: texto, geometria, cor, fixação |
 | [NoteStore.java](src/main/java/com/postit/NoteStore.java) | leitura e gravação em `~/.postit` |
+| [SettingsDialog.java](src/main/java/com/postit/SettingsDialog.java) | a janela de Configurações |
+| [Autostart.java](src/main/java/com/postit/Autostart.java) | liga e desliga o início automático com o Windows |
 | [Palette.java](src/main/java/com/postit/Palette.java) | as 6 cores |
 | [Icons.java](src/main/java/com/postit/Icons.java) | ícone da bandeja, desenhado em runtime |
-| [install-startup.ps1](install-startup.ps1) · [uninstall-startup.ps1](uninstall-startup.ps1) | atalho na pasta Inicializar do Windows |
+| [install-startup.ps1](install-startup.ps1) · [uninstall-startup.ps1](uninstall-startup.ps1) | o mesmo atalho, para instalação por script |

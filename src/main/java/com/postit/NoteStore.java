@@ -40,6 +40,10 @@ public final class NoteStore {
         return dir.getParent();
     }
 
+    public Path notesDir() {
+        return dir;
+    }
+
     /** Todas as notas salvas, da mais antiga para a mais recente. */
     public List<Note> loadAll() {
         List<Note> notes = new ArrayList<>();

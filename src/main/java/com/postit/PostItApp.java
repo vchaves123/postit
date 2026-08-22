@@ -166,6 +166,11 @@ public final class PostItApp implements NoteFrame.Host {
     }
 
     @Override
+    public void openSettings(NoteFrame origin) {
+        new SettingsDialog(origin, store.notesDir()).setVisible(true);
+    }
+
+    @Override
     public void showAll() {
         for (NoteFrame frame : new ArrayList<>(frames.values())) {
             frame.setVisible(true);
@@ -216,9 +221,15 @@ public final class PostItApp implements NoteFrame.Host {
             }
         }
         menu.addSeparator();
+        menu.add(menuItem("Configuracoes...", () -> openSettings(anyFrame())));
         menu.add(menuItem("Sobre", this::showAbout));
         menu.add(menuItem("Sair", this::quit));
         trayIcon.setPopupMenu(menu);
+    }
+
+    /** Qualquer nota aberta, para servir de dona do dialogo; {@code null} se nao houver nenhuma. */
+    private NoteFrame anyFrame() {
+        return frames.values().stream().findFirst().orElse(null);
     }
 
     private static MenuItem menuItem(String text, Runnable action) {
