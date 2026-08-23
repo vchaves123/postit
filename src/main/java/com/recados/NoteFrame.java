@@ -9,9 +9,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
-import java.awt.Rectangle;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.Desktop;
@@ -107,9 +104,6 @@ public final class NoteFrame extends JFrame {
      * RTF cabe numa String e volta identico.
      */
     private static final Charset RTF_CHARSET = StandardCharsets.ISO_8859_1;
-
-    /** Calculado uma vez: a configuracao de monitores nao muda no meio de um arraste. */
-    private static final boolean MIXED_SCALES = detectMixedScales();
 
     /** Azul de link. Mais forte que o texto de qualquer paleta, inclusive a azul. */
     private static final Color LINK_COLOR = new Color(0x0B57D0);
@@ -909,78 +903,8 @@ public final class NoteFrame extends JFrame {
                 return;
             }
             Point pointer = e.getLocationOnScreen();
-            Point target = new Point(pointer.x - grabOffset.x, pointer.y - grabOffset.y);
-            setLocation(anchorToPointerScreen(target, pointer));
+            setLocation(pointer.x - grabOffset.x, pointer.y - grabOffset.y);
         }
-    }
-
-    /**
-     * Mantem a nota dentro do monitor onde esta o ponteiro, quando os monitores tem escalas
-     * diferentes.
-     *
-     * <p>Com escalas mistas o espaco de coordenadas tem um vao: um monitor de 1920 px a 150%
-     * ocupa 1280 unidades, entao sobra uma faixa que nao pertence a monitor nenhum. Pedir uma
-     * posicao nessa faixa da resultado imprevisivel -- medindo aqui, {@code x=-200} virou
-     * {@code x=660}. Nao ha transformacao para inverter; o que ha e uma regra: posicao dentro
-     * da faixa valida de um monitor e obedecida ao pixel. Entao a nota anda ancorada no
-     * monitor do ponteiro e salta de uma borda para a outra, em vez de cair no vao.
-     *
-     * <p>Em monitor unico, ou com todos na mesma escala, nao mexe em nada -- ali a nota pode
-     * ficar meio fora da tela, que e util e nao quebra.
-     */
-    private Point anchorToPointerScreen(Point target, Point pointer) {
-        if (!MIXED_SCALES) {
-            return target;
-        }
-        Rectangle screen = screenNearest(pointer);
-        if (screen == null) {
-            return target;
-        }
-        int maxX = screen.x + screen.width - Math.min(getWidth(), screen.width);
-        int maxY = screen.y + screen.height - Math.min(getHeight(), screen.height);
-        return new Point(
-                Math.max(screen.x, Math.min(target.x, maxX)),
-                Math.max(screen.y, Math.min(target.y, maxY)));
-    }
-
-    /**
-     * O monitor que contem o ponto, ou o mais proximo dele. O ponteiro de verdade nunca cai
-     * no vao entre monitores -- o sistema o mantem sempre sobre uma tela -- mas a busca pelo
-     * mais proximo evita depender disso.
-     */
-    private static Rectangle screenNearest(Point point) {
-        Rectangle nearest = null;
-        double best = Double.MAX_VALUE;
-        for (GraphicsDevice device : GraphicsEnvironment.getLocalGraphicsEnvironment()
-                .getScreenDevices()) {
-            Rectangle screen = device.getDefaultConfiguration().getBounds();
-            if (screen.contains(point)) {
-                return screen;
-            }
-            double dx = Math.max(0, Math.max(screen.x - point.x, point.x - (screen.x + screen.width)));
-            double dy = Math.max(0, Math.max(screen.y - point.y, point.y - (screen.y + screen.height)));
-            double distance = dx * dx + dy * dy;
-            if (distance < best) {
-                best = distance;
-                nearest = screen;
-            }
-        }
-        return nearest;
-    }
-
-    /** Se ha monitores em escalas diferentes -- o unico caso em que existe o vao. */
-    private static boolean detectMixedScales() {
-        double first = -1;
-        for (GraphicsDevice device : GraphicsEnvironment.getLocalGraphicsEnvironment()
-                .getScreenDevices()) {
-            double scale = device.getDefaultConfiguration().getDefaultTransform().getScaleX();
-            if (first < 0) {
-                first = scale;
-            } else if (Math.abs(scale - first) > 0.01) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Alca de redimensionamento no canto inferior direito. */
