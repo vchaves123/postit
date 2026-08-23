@@ -28,10 +28,10 @@ if (-not $javaw) {
 $startup = [Environment]::GetFolderPath('Startup')
 $link = Join-Path $startup 'recados.lnk'
 
-$shell# limpa o atalho do nome antigo, para nao sobrar dois na Inicializar
+# limpa o atalho do nome antigo, para nao sobrar dois na Inicializar
 Remove-Item (Join-Path $startup 'postit.lnk') -Force -ErrorAction SilentlyContinue
 
- = New-Object -ComObject WScript.Shell
+$shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($link)
 $shortcut.TargetPath = $javaw
 $shortcut.Arguments = '-jar "' + $jar + '"'
