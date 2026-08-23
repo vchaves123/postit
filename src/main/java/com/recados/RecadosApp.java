@@ -102,6 +102,10 @@ public final class RecadosApp implements NoteFrame.Host {
                 O botao - minimiza a nota;
                 ela volta pela bandeja.
 
+                A barra de baixo formata o texto:
+                negrito, italico, sublinhado,
+                lista, link e limpar formatacao.
+
                 Arraste pela barra de cima,
                 redimensione pelo canto de baixo.
                 O texto salva sozinho.""");
@@ -191,16 +195,26 @@ public final class RecadosApp implements NoteFrame.Host {
         refreshTrayMenu();
     }
 
+    /**
+     * Nota em branco vai embora direto: sem perguntar, e sem passar pela lixeira. Nao ha o
+     * que confirmar nem o que recuperar, e guardar arquivo vazio na lixeira so daria trabalho
+     * de limpar depois. Nota com conteudo continua pedindo confirmacao e continua indo para
+     * a lixeira.
+     */
     @Override
     public void deleteNote(NoteFrame frame) {
-        if (!frame.confirmDelete()) {
+        boolean blank = frame.isBlank();
+        if (!blank && !frame.confirmDelete()) {
             return;
         }
-        if (!store.delete(frame.note())) {
+        if (!(blank ? store.deleteForever(frame.note()) : store.delete(frame.note()))) {
             // nao fecha a janela: a nota continua no disco, e sumir da tela seria mentira
             JOptionPane.showMessageDialog(frame,
-                    "Nao foi possivel mover a nota para a lixeira em\n" + store.trashDir()
-                            + "\n\nA nota continua salva.",
+                    blank
+                            ? "Nao foi possivel apagar o arquivo da nota em\n" + store.notesDir()
+                                    + "\n\nA nota continua salva."
+                            : "Nao foi possivel mover a nota para a lixeira em\n" + store.trashDir()
+                                    + "\n\nA nota continua salva.",
                     "Recados", JOptionPane.ERROR_MESSAGE);
             return;
         }

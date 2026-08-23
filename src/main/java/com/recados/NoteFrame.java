@@ -6,7 +6,9 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -16,9 +18,6 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -52,7 +51,6 @@ import javax.swing.event.DocumentListener;
 import java.util.Optional;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.SimpleAttributeSet;
@@ -63,7 +61,6 @@ import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
-import javax.swing.text.rtf.RTFEditorKit;
 
 /**
  * A janela de uma nota: sem decoracao do sistema, arrastavel pela barra de titulo propria
@@ -92,18 +89,11 @@ public final class NoteFrame extends JFrame {
     private static final int HEADER_HEIGHT = 28;
     private static final int GRIP_SIZE = 14;
     private static final int SAVE_DELAY_MS = 500;
-    private static final int MIN_WIDTH = 160;
-    private static final int MIN_HEIGHT = 120;
+    private static final int MIN_WIDTH = Note.MIN_WIDTH;
+    private static final int MIN_HEIGHT = Note.MIN_HEIGHT;
 
-    /** Um por classe: o kit nao guarda estado do documento. */
-    private static final RTFEditorKit RTF = new RTFEditorKit();
-
-    /**
-     * O RTFEditorKit trabalha em bytes -- passar Reader ou Writer para ele levanta
-     * "RTF is an 8-bit format". Latin-1 mapeia byte a caractere sem perder nada, entao o
-     * RTF cabe numa String e volta identico.
-     */
-    private static final Charset RTF_CHARSET = StandardCharsets.ISO_8859_1;
+    /** Cabe a alca e os botoes de formatacao, que tem a mesma altura dos da barra de titulo. */
+    private static final int FOOTER_HEIGHT = 26;
 
     /** Azul de link. Mais forte que o texto de qualquer paleta, inclusive a azul. */
     private static final Color LINK_COLOR = new Color(0x0B57D0);
@@ -113,6 +103,7 @@ public final class NoteFrame extends JFrame {
     private final JTextPane textPane = new JTextPane();
     private final JPanel header = new JPanel(new BorderLayout());
     private final JPanel footer = new JPanel(new BorderLayout());
+    private final JPanel formatBar = new JPanel();
     private final GlyphButton pinButton;
     private final Timer saveTimer;
 
@@ -226,11 +217,58 @@ public final class NoteFrame extends JFrame {
     }
 
     private JComponent buildFooter() {
-        footer.setPreferredSize(new Dimension(0, GRIP_SIZE));
+        footer.setPreferredSize(new Dimension(0, FOOTER_HEIGHT));
+        footer.add(buildFormatBar(), BorderLayout.WEST);
         footer.add(Box.createHorizontalGlue(), BorderLayout.CENTER);
         footer.add(new ResizeGrip(), BorderLayout.EAST);
         attachPopup(footer);
         return footer;
+    }
+
+    /**
+     * A barra de formatacao, no rodape. Fica embaixo, e nao na barra de titulo, para nao
+     * misturar acoes da <i>janela</i> (nova nota, cor, fixar, minimizar) com acoes do
+     * <i>texto</i> -- e porque a nota mais estreita nao teria largura para as duas coisas.
+     *
+     * <p>Aparece so com a nota em foco: nota que voce esta apenas lendo nao precisa dela. A
+     * altura do rodape nao muda quando ela aparece, de proposito -- se mudasse, o texto
+     * pularia (e a rolagem escorregaria) a cada vez que a nota ganha ou perde o foco.
+     */
+    private JComponent buildFormatBar() {
+        formatBar.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 2));
+        formatBar.setOpaque(false);
+        formatBar.setVisible(false); // a nota nasce sem foco
+        formatBar.add(new GlyphButton(Glyph.BOLD, "Negrito (Ctrl+B)",
+                () -> applyStyle(new StyledEditorKit.BoldAction())));
+        formatBar.add(new GlyphButton(Glyph.ITALIC, "Italico (Ctrl+I)",
+                () -> applyStyle(new StyledEditorKit.ItalicAction())));
+        formatBar.add(new GlyphButton(Glyph.UNDERLINE, "Sublinhado (Ctrl+U)",
+                () -> applyStyle(new StyledEditorKit.UnderlineAction())));
+        formatBar.add(new GlyphButton(Glyph.LIST, "Inserir lista", this::insertList));
+        formatBar.add(new GlyphButton(Glyph.LINK, "Inserir link", this::promptLink));
+        formatBar.add(new GlyphButton(Glyph.ERASER,
+                "Limpar formatacao da selecao (ou da nota toda)", this::clearFormatting));
+        attachPopup(formatBar);
+        return formatBar;
+    }
+
+    /** Se a barra de formatacao esta na tela. Usado tambem pelas checagens. */
+    public boolean formatBarVisible() {
+        return formatBar.isVisible();
+    }
+
+    /**
+     * Se algum botao da barra pode receber o foco. Tem de ser {@code false}: botao que rouba
+     * o foco do editor apaga a selecao <i>na tela</i> -- voce marca a palavra, clica no B, e
+     * nao ve mais o que era a selecao. Usado pelas checagens para nao voltar a acontecer.
+     */
+    public boolean formatBarStealsFocus() {
+        for (Component child : formatBar.getComponents()) {
+            if (child.isFocusable()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // -------------------------------------------------------------- texto rico
@@ -257,83 +295,15 @@ public final class NoteFrame extends JFrame {
      */
     private void loadContent() {
         String html = note.html();
-        if (html.isBlank() && !note.rtf().isBlank()) {
-            html = convertLegacyRtf(note.rtf());
+        if (html.isBlank()) {
+            html = HtmlText.rtfToHtml(note.rtf());
         }
         if (html.isBlank()) {
-            html = plainToHtml(note.text());
+            html = HtmlText.plainToHtml(note.text());
         }
         textPane.setText(html);
         textPane.setCaretPosition(0);
         applyTextColor();
-    }
-
-    /**
-     * Nota gravada antes da mudanca para HTML. O RTF vira um documento em memoria e sai como
-     * HTML pelo MinimalHTMLWriter; ao gravar, a nota passa a ser HTML de vez.
-     */
-    private String convertLegacyRtf(String rtf) {
-        try {
-            DefaultStyledDocument styled = new DefaultStyledDocument();
-            RTF.read(new ByteArrayInputStream(rtf.getBytes(RTF_CHARSET)), styled, 0);
-            return styledToHtml(styled);
-        } catch (IOException | BadLocationException e) {
-            System.err.println("Nao foi possivel converter o RTF da nota " + note.id()
-                    + " (" + e.getMessage() + "); abrindo o texto puro.");
-            return "";
-        }
-    }
-
-    /**
-     * Converte um documento formatado em HTML. Feito a mao porque o MinimalHTMLWriter do
-     * Swing nao e publico -- e porque as notas em RTF so podiam ter negrito, italico e
-     * sublinhado, que e exatamente o que este metodo cobre.
-     */
-    private static String styledToHtml(StyledDocument doc) throws BadLocationException {
-        StringBuilder out = new StringBuilder("<html><body>");
-        int position = 0;
-        while (position < doc.getLength()) {
-            Element run = doc.getCharacterElement(position);
-            int start = Math.max(run.getStartOffset(), position);
-            int end = run.getEndOffset();
-            AttributeSet attrs = run.getAttributes();
-
-            StringBuilder open = new StringBuilder();
-            StringBuilder close = new StringBuilder();
-            if (StyleConstants.isBold(attrs)) {
-                open.append("<b>");
-                close.insert(0, "</b>");
-            }
-            if (StyleConstants.isItalic(attrs)) {
-                open.append("<i>");
-                close.insert(0, "</i>");
-            }
-            if (StyleConstants.isUnderline(attrs)) {
-                open.append("<u>");
-                close.insert(0, "</u>");
-            }
-            out.append(open)
-                    .append(escapeHtml(doc.getText(start, end - start)).replace("\n", "<br>"))
-                    .append(close);
-            position = Math.max(end, position + 1);
-        }
-        return out.append("</body></html>").toString();
-    }
-
-    private static String escapeHtml(String text) {
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
-    /** Texto puro em HTML, escapando o que o navegador leria como marcacao. */
-    private static String plainToHtml(String text) {
-        if (text.isEmpty()) {
-            return "";
-        }
-        String escaped = text.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\n", "<br>");
-        return "<html><body>" + escaped + "</body></html>";
     }
 
     /**
@@ -439,8 +409,8 @@ public final class NoteFrame extends JFrame {
                 return;
             }
         }
-        insertHtml("<a href=\"" + escapeHtml(url.strip()) + "\">" + escapeHtml(label) + "</a>",
-                HTML.Tag.A);
+        insertHtml("<a href=\"" + HtmlText.escapeHtml(url.strip()) + "\">"
+                + HtmlText.escapeHtml(label) + "</a>", HTML.Tag.A);
     }
 
     /** Copia a nota inteira, com formatacao, para colar em e-mail ou navegador. */
@@ -562,8 +532,11 @@ public final class NoteFrame extends JFrame {
         }
     }
 
-    /** Os desenhos dos botoes da barra de titulo. */
-    private enum Glyph { PLUS, COLOR, PIN_ON, PIN_OFF, MINIMIZE }
+    /** Os desenhos dos botoes: os quatro primeiros da barra de titulo, o resto do rodape. */
+    private enum Glyph {
+        PLUS, COLOR, PIN_ON, PIN_OFF, MINIMIZE,
+        BOLD, ITALIC, UNDERLINE, LIST, LINK, ERASER
+    }
 
     /**
      * Botao da barra de titulo. O icone e desenhado, nao escrito: com fonte, glifos como
@@ -583,6 +556,10 @@ public final class NoteFrame extends JFrame {
         GlyphButton(Glyph glyph, String tooltip, Runnable action) {
             this.glyph = glyph;
             this.action = action;
+            // Nao pode receber o foco: botao que rouba o foco do editor apaga a selecao na
+            // tela, e quem clica no B depois de marcar uma palavra perde de vista o que
+            // marcou. Assim o clique executa a acao e o cursor de texto fica onde estava.
+            setFocusable(false);
             setPreferredSize(new Dimension(SIZE, SIZE));
             setToolTipText(tooltip);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -642,8 +619,47 @@ public final class NoteFrame extends JFrame {
                 // barra embaixo, como o minimizar do Windows: a nota sai da tela e
                 // continua existindo. Um "x" prometia fechar e cumpria apagar.
                 case MINIMIZE -> g2.drawLine(x, y + box, x + box, y + box);
+
+                // Estes tres sao letras, e nao desenho: B, I e U existem em qualquer fonte
+                // instalada. O quadradinho vazio que apareceu antes era com simbolo ("◑"),
+                // que a fonte pode nao ter -- ASCII nao corre esse risco.
+                case BOLD -> drawLetter(g2, "B", Font.BOLD, false);
+                case ITALIC -> drawLetter(g2, "I", Font.ITALIC, false);
+                case UNDERLINE -> drawLetter(g2, "U", Font.PLAIN, true);
+
+                case LIST -> {
+                    for (int row = 0; row < 3; row++) {
+                        int ly = y + row * 4 + 1;
+                        g2.fillRect(x, ly, 2, 2);
+                        g2.drawLine(x + 4, ly + 1, x + box, ly + 1);
+                    }
+                }
+                // dois elos de corrente, um enganchado no outro
+                case LINK -> {
+                    g2.drawRoundRect(x, y + 3, 6, 5, 4, 4);
+                    g2.drawRoundRect(x + 4, y + 3, 6, 5, 4, 4);
+                }
+                // borracha inclinada sobre a linha do papel
+                case ERASER -> {
+                    g2.drawPolygon(new int[] {x + 2, x + 7, x + box, x + 5},
+                            new int[] {y + 5, y, y + 3, y + 8}, 4);
+                    g2.drawLine(x, y + box, x + box, y + box);
+                }
             }
             g2.dispose();
+        }
+
+        /** Letra centralizada no botao, com sublinhado opcional. */
+        private void drawLetter(Graphics2D g2, String letter, int style, boolean underline) {
+            g2.setFont(new Font(Font.SANS_SERIF, style, 12));
+            FontMetrics metrics = g2.getFontMetrics();
+            int width = metrics.stringWidth(letter);
+            int tx = (getWidth() - width) / 2;
+            int ty = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+            g2.drawString(letter, tx, ty);
+            if (underline) {
+                g2.drawLine(tx, ty + 2, tx + width, ty + 2);
+            }
         }
     }
 
@@ -697,7 +713,13 @@ public final class NoteFrame extends JFrame {
         });
         addWindowListener(new WindowAdapter() {
             @Override
+            public void windowActivated(WindowEvent e) {
+                showFormatBar(true);
+            }
+
+            @Override
             public void windowDeactivated(WindowEvent e) {
+                showFormatBar(false);
                 flush();
             }
 
@@ -711,6 +733,15 @@ public final class NoteFrame extends JFrame {
         });
     }
 
+    /** Mostra ou esconde a barra de formatacao sem mexer na altura do rodape. */
+    private void showFormatBar(boolean show) {
+        if (formatBar.isVisible() != show) {
+            formatBar.setVisible(show);
+            footer.revalidate();
+            footer.repaint();
+        }
+    }
+
     private void applyPalette() {
         Palette palette = note.palette();
         getContentPane().setBackground(palette.body());
@@ -719,6 +750,7 @@ public final class NoteFrame extends JFrame {
         textPane.setSelectionColor(palette.header().darker());
         applyTextColor();
         paintForeground(header, palette.text());
+        paintForeground(footer, palette.text()); // os botoes de formatacao tambem
         repaint();
     }
 
@@ -845,8 +877,17 @@ public final class NoteFrame extends JFrame {
     }
 
     /**
-     * Pergunta antes de apagar -- sempre, inclusive com a nota em branco. Antes a nota
-     * vazia era apagada sem perguntar, e isso transformava um clique errado em perda
+     * Nota sem conteudo nenhum. Vale o texto puro do documento: uma lista vazia ou um
+     * paragrafo solto que o editor deixou para tras nao fazem a nota ter conteudo.
+     */
+    public boolean isBlank() {
+        return plainText().isEmpty();
+    }
+
+    /**
+     * Pergunta antes de apagar. Nota em branco nao passa por aqui -- {@link #isBlank()} --
+     * porque nao ha o que perder. Nota com conteudo pergunta sempre: antes a vazia era
+     * apagada sem perguntar e a cheia tambem, e isso transformava um clique errado em perda
      * silenciosa.
      */
     public boolean confirmDelete() {

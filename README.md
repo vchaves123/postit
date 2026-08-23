@@ -26,10 +26,10 @@ No Linux/macOS, use `./recados.sh`.
 | Redimensionar | arraste a alça no canto inferior direito |
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
 | Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores; a padrão é azul) |
-| Formatar texto | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, listas e links no menu **Formatar** |
+| Formatar texto | a **barra de ícones no rodapé** (aparece com a nota em foco) |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Minimizar a nota | botão da barra ou `Ctrl+W` — **não apaga**, volta pela bandeja |
-| Apagar a nota | `Ctrl+D` ou o menu de contexto — sempre pede confirmação, e vai para a lixeira |
+| Apagar a nota | `Ctrl+D` ou o menu de contexto — pede confirmação e vai para a lixeira; nota **em branco** apaga direto |
 | Mostrar todas as notas | `Ctrl+Shift+A` ou clique no ícone da bandeja |
 | Configurações | `Ctrl+,`, menu da bandeja, ou menu de contexto |
 | Sair | `Ctrl+Q` ou o menu da bandeja |
@@ -104,16 +104,28 @@ inicialização" nas configurações do Windows e é I/O puro para consultar e r
 
 ## Texto rico
 
-O documento é **HTML**, no menu **Formatar** do clique direito:
+O documento é **HTML**, e a formatação fica numa **barra de ícones no rodapé** da nota:
 
-| O quê | Como |
-| --- | --- |
-| Negrito, itálico, sublinhado | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, ou o menu |
-| Lista com marcadores | Formatar → Inserir lista |
-| Link | Formatar → Inserir link — a seleção vira o rótulo; sem seleção, o endereço |
-| Abrir um link | **Ctrl+clique** |
-| Copiar com formatação | Formatar → Copiar tudo |
-| Limpar formatação | Formatar → Limpar formatação (na seleção, ou na nota toda) |
+| Ícone | O quê | Também por |
+| --- | --- | --- |
+| **B** | negrito | `Ctrl+B` |
+| *I* | itálico | `Ctrl+I` |
+| U̲ | sublinhado | `Ctrl+U` |
+| três linhas com marcadores | inserir lista | menu Formatar |
+| dois elos de corrente | inserir link — a seleção vira o rótulo; sem seleção, o endereço | menu Formatar |
+| borracha | limpar formatação (na seleção, ou na nota toda) | menu Formatar |
+
+Abrir um link é **Ctrl+clique**. Copiar a nota com formatação continua no menu **Formatar** do
+clique direito, junto de tudo o que está na barra — é ação da nota inteira, não da seleção, e
+tirá-la da barra é o que faz os seis ícones caberem na nota mais estreita (160 px).
+
+A barra fica **embaixo**, e não na barra de título, para não misturar ações da *janela* (nova
+nota, cor, fixar, minimizar) com ações do *texto*. E aparece só com a nota em foco: nota que
+você está apenas lendo não precisa dela. A altura do rodapé não muda quando ela aparece — se
+mudasse, o texto pularia e a rolagem escorregaria a cada troca de foco. Por causa da barra, a
+altura mínima da nota subiu de 120 para 150 px.
+
+O menu **Formatar** do clique direito continua existindo: é onde os atalhos aparecem escritos.
 
 **Colar em e-mail e navegador** funciona porque a cópia oferece `text/html` *e* texto puro —
 quem aceita HTML recebe a formatação, quem não aceita recebe o texto. É o motivo de o formato
@@ -126,16 +138,13 @@ somente-leitura.
 A cor do texto vem da paleta da nota, não do documento: trocar a cor recolore tudo. Os links
 ficam de fora — azul de link não é decoração, é sinal de que dá para clicar.
 
-Cada nota grava **os dois formatos**: `html=` com a formatação e `text=` com o texto puro. O
-texto puro mantém o arquivo pesquisável com `grep` e alimenta a lista da bandeja.
-
 ### Notas de versões anteriores
 
-Abrem sem nada a fazer. Nota com `rtf=` (da versão anterior a esta) é convertida para HTML ao
-ser aberta e passa a gravar `html=`; nota só com `text=` também. Se o HTML estiver corrompido,
-a nota abre pelo texto puro em vez de falhar.
+Abrem sem nada a fazer. Nota com `rtf=` (de duas versões atrás) é convertida para HTML, e nota
+só com `text=` também — ver "Onde as notas ficam". Se o HTML estiver corrompido, a nota abre
+pelo texto puro em vez de falhar.
 
-### Duas armadilhas do Swing que valem registro
+### Três armadilhas do Swing que valem registro
 
 `InsertHTMLTextAction` **não insere nada quando o cursor está no offset 0** — e não reclama.
 Como a nota abre com o cursor em 0, lista e link desapareciam em silêncio se você não clicasse
@@ -143,6 +152,10 @@ antes. Por isso o cursor é levado para o fim quando está em zero.
 
 Marcar o texto com o atributo `HTML.Tag.A` para criar link **não funciona**: o escritor emite
 `<a href><u><p-implied></u></a>`, sem o rótulo. O link precisa entrar como HTML, pelo parser.
+
+Botão que **recebe o foco apaga a seleção na tela**: você marca a palavra, clica no B, e não vê
+mais o que marcou. Os botões da barra de formatação são `setFocusable(false)` por isso, e uma
+checagem garante que continuem assim.
 
 ## Checagens
 
@@ -153,9 +166,11 @@ powershell -ExecutionPolicy Bypass -File run-checks.ps1
 No Linux/macOS, `./run-checks.sh`. Cada grupo usa um diretório temporário próprio, então as
 checagens nunca tocam as suas notas.
 
-Cobrem lixeira e restauração, a migração de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem
-minimizar, apagar sem ressuscitar, o ida-e-volta do HTML, listas, links, a colagem com
-`text/html` e a conversão de notas antigas em RTF ou texto puro.
+Cobrem o formato do arquivo HTML e seus metadados, a pasta de minimizadas, a lixeira e a
+restauração, nota em branco apagando direto, a conversão do formato `.properties`, a migração
+de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem minimizar, apagar sem ressuscitar, a barra
+de formatação (aparece com o foco, não rouba o foco), o ida-e-volta do HTML, listas, links e a
+colagem com `text/html`.
 
 **Por que não JUnit e `mvn test`:** nesta máquina o Kaspersky encerra o booter do
 maven-surefire como `PDM:Trojan.Win32.Generic`, então `mvn test` nunca chega a rodar. As
@@ -179,35 +194,104 @@ Se você preferir a escala do sistema à travessia suave, tire o `-Dsun.java2d.u
 
 ## Onde as notas ficam
 
-`~/.recados/notes/<uuid>.properties` — um arquivo por nota, texto e geometria juntos. Escrever
-uma nota nunca mexe nas outras, e a gravação é atômica (arquivo temporário + `move`), então
-uma falha no meio não deixa nota truncada. Um `.lock` no diretório impede duas instâncias
-brigando pelos mesmos arquivos.
+```
+~/.recados/notes/<uuid>.html              nota na tela
+~/.recados/notes/minimizados/<uuid>.html  nota minimizada
+~/.recados/trash/<uuid>-<timestamp>.html  nota apagada
+~/.recados/legado/<uuid>.properties       o arquivo do formato anterior, arquivado
+```
 
-A cor vai gravada pelo **nome** (`color=Azul`), nunca pela posição na paleta: reordenar as
-cores não pode repintar nota já gravada. Arquivo da versão que gravava `colorIndex=` continua
-sendo lido pela ordem antiga daquela época, que está fixa em `NoteStore`.
+Um arquivo por nota, e um **HTML de verdade**: duplo clique abre no navegador, dá para arrastar
+para um e-mail, dá para ler a olho nu. Escrever uma nota nunca mexe nas outras. Um `.lock` no
+diretório impede duas instâncias brigando pelos mesmos arquivos.
 
-### Minimizar não é apagar
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Comprar pão, leite…</title>
+<meta name="recados:created-at" content="2026-08-23T13:14:22.187Z">
+<meta name="recados:x" content="120">
+<meta name="recados:y" content="340">
+<meta name="recados:width" content="280">
+<meta name="recados:height" content="260">
+<meta name="recados:color" content="Azul">
+<meta name="recados:always-on-top" content="true">
+<style>
+body { background: #C2E4FF; color: #1E3547; font-family: 'Segoe UI', sans-serif; ... }
+</style>
+<!-- Nao renomeie este arquivo: o id do recado vem do nome dele. -->
+</head>
+<body>
+Comprar <b>pão</b>, leite…
+</body>
+</html>
+```
 
-O botão da barra de título **minimiza** a nota — barra horizontal, como o minimizar do Windows: ela continua
-no disco, aparece marcada como `(minimizada)` na lista da bandeja, e voltar é um clique ali. O
-estado fica gravado em `visible=`, então nota minimizada continua minimizada no próximo início.
+**Por que `<meta>` e não comentário:** comentário é a primeira coisa que editor de HTML,
+minificador ou sanitizador tira sem avisar, e `<meta name>` é o lugar que o próprio padrão
+reserva para metadado — de quebra já vem estruturado se um dia a leitura passar por um parser.
+Comentário ficou onde comentário é bom: o aviso para o humano não renomear o arquivo. O
+`<title>` dá nome à aba do navegador, e o `<style>` leva a cor da paleta, então o arquivo
+aberto fora do Recados tem a cara da nota.
 
-Apagar é ação separada e explícita — `Ctrl+D` ou o menu de contexto — e **sempre** pede
-confirmação, inclusive em nota em branco. Antes um `×` apagava e a nota vazia ia embora sem
-perguntar, o que transformava um clique no lugar errado em perda silenciosa.
+A cor vai gravada pelo **nome** (`content="Azul"`), nunca pela posição na paleta: reordenar as
+cores não pode repintar nota já gravada.
+
+**O texto puro não é gravado.** Antes o arquivo tinha `html=` e `text=`, as duas versões do
+mesmo conteúdo, podendo divergir; agora o texto puro (que dá o título e a lista da bandeja) é
+derivado do HTML na leitura. O custo é que `grep "comprar pão"` pode não achar se houver um
+`<b>` no meio da frase — `grep pão` acha.
+
+### Gravação atômica
+
+A gravação passa por `<uuid>.html.tmp` e depois um `move` — falha no meio não deixa nota
+truncada. O `move` usa `ATOMIC_MOVE`, e não só `REPLACE_EXISTING`: no Windows, o segundo
+**apaga o destino e depois renomeia**, e quem estiver lendo a pasta nesse instante vê a nota
+desaparecida. Não é teórico — foi assim que uma checagem começou a falhar de vez em quando, e
+foi essa checagem que revelou o problema.
+
+### Minimizar não é apagar, e minimizada é a pasta
+
+O botão da barra de título **minimiza** a nota — barra horizontal, como o minimizar do Windows:
+ela continua no disco, aparece marcada como `(minimizada)` na lista da bandeja, e voltar é um
+clique ali.
+
+Onde ela está minimizada não é um campo no arquivo: é a **pasta**. Minimizar é mover
+`notes/<uuid>.html` para `notes/minimizados/<uuid>.html`, e voltar é mover de volta. Uma
+verdade só, visível no explorador, e você pode restaurar uma nota à mão arrastando o arquivo.
+
+O nome do arquivo **nunca** muda — e é de propósito. Marcar o estado no nome
+(`<uuid>.html.minimizado`) foi considerado e descartado: a extensão passaria a ser
+`.minimizado`, o Windows perderia a associação, e justamente o duplo clique que o formato HTML
+conquistou deixaria de funcionar nas notas minimizadas. Além disso o id vem do nome do arquivo,
+e renomear a cada minimizar abriria a chance de, com um desligamento no meio, sobrarem dois
+arquivos com o mesmo id. Movendo, a nota existe em exatamente um lugar em qualquer instante.
 
 ### Lixeira
 
-Apagar **não** remove o arquivo: ele vai para `~/.recados/trash/<uuid>-<timestamp>.properties`.
+Apagar **não** remove o arquivo: ele vai para `~/.recados/trash/<uuid>-<timestamp>.html`.
 A pasta nasce no primeiro apagar, e o carimbo de tempo garante que restaurar uma nota e apagar
 de novo não sobrescreve a cópia anterior.
+
+**Nota em branco é a exceção:** apaga de vez, sem confirmação e sem lixeira. Não há o que
+confirmar nem o que recuperar, e arquivo vazio na lixeira só dá trabalho de limpar depois.
+Nota com conteúdo continua pedindo confirmação — e é aqui que vale lembrar por que: antes um
+`×` na barra de título apagava sem perguntar, e um clique no lugar errado virava perda
+silenciosa.
 
 Para restaurar, mova o arquivo de volta para `notes/` — sem renomear, porque o id da nota vem
 do nome do arquivo. O botão **"Abrir a lixeira"** em Configurações leva direto lá.
 
 Nada esvazia a lixeira automaticamente; apagar de vez é decisão sua, no explorador de arquivos.
+
+### O formato anterior
+
+Nota gravada em `.properties` (formato até esta versão) é convertida para `.html` na primeira
+leitura, com posição, tamanho, cor, formatação e o estado de minimizada preservados — inclusive
+o `rtf=` de duas versões atrás, que vira HTML na conversão. O arquivo antigo vai para
+`legado/`, não para o lixo: mudança de formato não deve ser caminho sem volta.
 
 ## Estrutura
 
@@ -216,7 +300,8 @@ Nada esvazia a lixeira automaticamente; apagar de vez é decisão sua, no explor
 | [RecadosApp.java](src/main/java/com/recados/RecadosApp.java) | ponto de entrada, ciclo de vida das janelas, bandeja do sistema |
 | [NoteFrame.java](src/main/java/com/recados/NoteFrame.java) | a janela da nota: arrastar, redimensionar, atalhos, autosave |
 | [Note.java](src/main/java/com/recados/Note.java) | o modelo: texto, geometria, cor, fixação |
-| [NoteStore.java](src/main/java/com/recados/NoteStore.java) | leitura e gravação em `~/.recados` |
+| [NoteStore.java](src/main/java/com/recados/NoteStore.java) | leitura e gravação dos `.html` em `~/.recados` |
+| [HtmlText.java](src/main/java/com/recados/HtmlText.java) | escapar texto e converter os formatos anteriores para HTML |
 | [SettingsDialog.java](src/main/java/com/recados/SettingsDialog.java) | a janela de Configurações |
 | [Autostart.java](src/main/java/com/recados/Autostart.java) | liga e desliga o início automático com o Windows |
 | [Palette.java](src/main/java/com/recados/Palette.java) | as 6 cores |

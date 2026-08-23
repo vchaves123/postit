@@ -16,6 +16,84 @@ public final class WindowChecks {
         wmCloseNaoMinimiza();
         apagarNaoRessuscita();
         somenteAAlcaRedimensiona();
+        barraDeFormatacao();
+        notaEmBranco();
+    }
+
+    /**
+     * A barra de formatacao aparece com a nota em foco e nenhum botao dela pode receber o
+     * foco -- botao que rouba o foco do editor apaga a selecao na tela, e quem marcou uma
+     * palavra antes de clicar no B perde de vista o que marcou.
+     */
+    private static void barraDeFormatacao() throws Exception {
+        Check.grupo("Barra de formatacao");
+        Path base = Files.createTempDirectory("recados-barra");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.text("texto para formatar");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        Check.that("nasce escondida, sem foco", !frame.formatBarVisible());
+
+        SwingUtilities.invokeAndWait(() ->
+                frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_ACTIVATED)));
+        Check.that("aparece com a nota em foco", frame.formatBarVisible());
+
+        SwingUtilities.invokeAndWait(() ->
+                frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_DEACTIVATED)));
+        Check.that("some quando a nota perde o foco", !frame.formatBarVisible());
+
+        Check.that("nenhum botao da barra rouba o foco", !frame.formatBarStealsFocus());
+        Check.that("a altura minima da nota cabe a barra", Note.MIN_HEIGHT >= 150);
+
+        SwingUtilities.invokeAndWait(frame::dispose);
+    }
+
+    /**
+     * Nota em branco vai embora direto: sem confirmacao e sem lixeira. Nota com conteudo
+     * continua protegida.
+     */
+    private static void notaEmBranco() throws Exception {
+        Check.grupo("Nota em branco apaga direto");
+        Path base = Files.createTempDirectory("recados-branco-janela");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note vazia = Note.create();
+        store.save(vazia);
+        NoteFrame semTexto = abrir(vazia, app);
+        Check.that("nota nova e considerada em branco", semTexto.isBlank());
+
+        Note comTexto = Note.create();
+        comTexto.text("tem conteudo");
+        store.save(comTexto);
+        NoteFrame comConteudo = abrir(comTexto, app);
+        Check.that("nota com texto nao e em branco", !comConteudo.isBlank());
+
+        // so espaco e quebra de linha continua sendo em branco
+        Note soEspacos = Note.create();
+        soEspacos.html("<html><body>   <br>  </body></html>");
+        store.save(soEspacos);
+        NoteFrame emBranco = abrir(soEspacos, app);
+        Check.that("espacos e quebras de linha nao sao conteudo", emBranco.isBlank());
+
+        SwingUtilities.invokeAndWait(() -> {
+            app.deleteNote(semTexto); // em branco: nao abre dialogo nenhum
+        });
+        Check.that("apagou sem passar pela lixeira", !store.trashHasNotes());
+        Check.that("o arquivo sumiu",
+                !Files.exists(base.resolve("notes").resolve(vazia.id() + ".html")));
+        Check.that("a janela fechou", !semTexto.isShowing());
+        Check.that("a nota com conteudo continua",
+                Files.exists(base.resolve("notes").resolve(comTexto.id() + ".html")));
+
+        SwingUtilities.invokeAndWait(() -> {
+            comConteudo.dispose();
+            emBranco.dispose();
+        });
     }
 
     /**
@@ -70,8 +148,10 @@ public final class WindowChecks {
 
         Check.that("janela saiu da tela", !frame.isShowing());
         Check.that("nota marcada como minimizada", !nota.visible());
-        Check.that("arquivo continua em notes",
-                Files.exists(base.resolve("notes").resolve(nota.id() + ".properties")));
+        Check.that("o arquivo foi para a pasta de minimizadas", Files.exists(
+                base.resolve("notes").resolve("minimizados").resolve(nota.id() + ".html")));
+        Check.that("e saiu da pasta das notas na tela",
+                !Files.exists(base.resolve("notes").resolve(nota.id() + ".html")));
         Check.that("nada foi para a lixeira", !store.trashHasNotes());
 
         List<Note> recarregadas = new NoteStore(base).loadAll();
@@ -128,7 +208,7 @@ public final class WindowChecks {
         store.save(nota);
         NoteFrame frame = abrir(nota, app);
 
-        Path arquivo = base.resolve("notes").resolve(nota.id() + ".properties");
+        Path arquivo = base.resolve("notes").resolve(nota.id() + ".html");
         SwingUtilities.invokeAndWait(() -> {
             frame.scheduleSave();  // deixa um autosave pendente
             store.delete(nota);    // manda para a lixeira

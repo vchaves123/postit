@@ -10,6 +10,8 @@ public final class Note {
 
     public static final int DEFAULT_WIDTH = 280;
     public static final int DEFAULT_HEIGHT = 260;
+    public static final int MIN_WIDTH = 160;
+    public static final int MIN_HEIGHT = 150;
 
     private final String id;
     private final long createdAt;
@@ -47,8 +49,8 @@ public final class Note {
     public void text(String text) { this.text = text == null ? "" : text; }
 
     /**
-     * O mesmo conteudo em HTML, com formatacao, listas e links. Gravado junto com o
-     * {@link #text()}, que mantem o arquivo legivel e pesquisavel e alimenta a bandeja.
+     * O conteudo, com formatacao, listas e links -- e o que vai para o disco. O
+     * {@link #text()} e derivado dele, e serve para o titulo e para a lista da bandeja.
      */
     public String html() { return html; }
     public void html(String html) { this.html = html == null ? "" : html; }
@@ -70,9 +72,13 @@ public final class Note {
         this.y = y;
     }
 
+    /**
+     * O minimo de altura sobe de 120 para 150 por causa da barra de formatacao no rodape:
+     * abaixo disso a nota em foco nao sobraria espaco para texto nenhum.
+     */
     public void size(int width, int height) {
-        this.width = Math.max(160, width);
-        this.height = Math.max(120, height);
+        this.width = Math.max(MIN_WIDTH, width);
+        this.height = Math.max(MIN_HEIGHT, height);
     }
 
     public int colorIndex() { return colorIndex; }
@@ -85,6 +91,9 @@ public final class Note {
     /**
      * Se a janela da nota esta aberta. Fechar uma nota nao a apaga: ela continua no disco
      * e na lista da bandeja, e volta quando o usuario mandar mostrar de novo.
+     *
+     * <p>No disco isto nao e um campo: e a pasta onde o arquivo esta ({@code notes/} ou
+     * {@code notes/minimizados/}). Ver {@link NoteStore}.
      */
     public boolean visible() { return visible; }
     public void visible(boolean visible) { this.visible = visible; }
