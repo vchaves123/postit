@@ -111,7 +111,7 @@ public final class NoteFrame extends JFrame {
 
         setUndecorated(true);
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        setIconImage(Icons.trayIcon(32));
+        setIconImages(Icons.appIcons());
         setMinimumSize(new Dimension(MIN_WIDTH, MIN_HEIGHT));
         setAlwaysOnTop(note.alwaysOnTop());
 

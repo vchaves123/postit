@@ -32,9 +32,9 @@ public final class Autostart {
 
     /** Se e possivel configurar o inicio automatico aqui, e por que nao, quando nao for. */
     public enum Status {
-        /** Windows e rodando a partir do jar: pode ligar e desligar. */
+        /** Windows, rodando pelo exe do jpackage ou pelo jar: pode ligar e desligar. */
         AVAILABLE,
-        /** Rodando a partir das classes compiladas (IDE): nao ha jar para apontar. */
+        /** Rodando a partir das classes compiladas (IDE): nao ha o que apontar. */
         NOT_PACKAGED,
         /** Fora do Windows: nao implementado nesta versao. */
         UNSUPPORTED_OS
@@ -56,14 +56,30 @@ public final class Autostart {
         if (!isWindows()) {
             return Status.UNSUPPORTED_OS;
         }
-        return jarPath().isPresent() ? Status.AVAILABLE : Status.NOT_PACKAGED;
+        return nativeLauncher().isPresent() || jarPath().isPresent()
+                ? Status.AVAILABLE : Status.NOT_PACKAGED;
+    }
+
+    /**
+     * O exe do jpackage, quando o Recados esta rodando por ele. O atalho tem que apontar para
+     * este executavel, e nao para javaw: e dele que a barra de tarefas tira o icone.
+     */
+    private static Optional<Path> nativeLauncher() {
+        return ProcessHandle.current().info().command()
+                .map(Path::of)
+                .filter(path -> {
+                    String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                    return name.endsWith(".exe") && !name.startsWith("java")
+                            && Files.isRegularFile(path);
+                });
     }
 
     /** Explicacao curta para mostrar embaixo da caixa de selecao. */
     public static String statusExplanation() {
         return switch (status()) {
-            case AVAILABLE -> "Cria um atalho na pasta Inicializar do Windows apontando para este "
-                    + "jar. Se voce mover a pasta do Recados, desmarque e marque de novo.";
+            case AVAILABLE -> "Cria um atalho na pasta Inicializar do Windows apontando para o "
+                    + "executavel atual. Se voce mover a pasta do Recados, desmarque e marque "
+                    + "de novo.";
             case NOT_PACKAGED -> "Disponivel quando o Recados roda pelo jar. Rode \"mvn package\" e "
                     + "inicie por target/recados.jar.";
             case UNSUPPORTED_OS -> "Nesta versao o inicio automatico so funciona no Windows.";
@@ -127,14 +143,26 @@ public final class Autostart {
 
     /** Cria (ou reaponta) o atalho via WScript.Shell, que e o unico jeito de escrever um .lnk. */
     private static void createShortcut() throws AutostartException {
-        Path jar = jarPath().orElseThrow(() -> new AutostartException(statusExplanation()));
-        Path launcher = launcher();
+        Path target;
+        String arguments;
+        Path workingDir;
+        Optional<Path> exe = nativeLauncher();
+        if (exe.isPresent()) {
+            target = exe.get();
+            arguments = "";
+            workingDir = exe.get().getParent();
+        } else {
+            Path jar = jarPath().orElseThrow(() -> new AutostartException(statusExplanation()));
+            target = launcher();
+            arguments = "-jar \"" + jar + "\"";
+            workingDir = jar.getParent();
+        }
         String script = "$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" + ps(linkPath()) + ");"
-                + "$s.TargetPath = " + ps(launcher) + ";"
-                + "$s.Arguments = " + ps("-jar \"" + jar + "\"") + ";"
-                + "$s.WorkingDirectory = " + ps(jar.getParent()) + ";"
+                + "$s.TargetPath = " + ps(target) + ";"
+                + "$s.Arguments = " + ps(arguments) + ";"
+                + "$s.WorkingDirectory = " + ps(workingDir) + ";"
                 + "$s.Description = 'Recados - notas na area de trabalho';"
-                + "$s.IconLocation = " + ps(launcher + ",0") + ";"
+                + "$s.IconLocation = " + ps(target + ",0") + ";"
                 + "$s.Save()";
 
         // -EncodedCommand em vez de -Command: o script vai em base64, entao as aspas duplas

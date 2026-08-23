@@ -6,6 +6,7 @@ import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
+import java.awt.Frame;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
@@ -295,7 +296,7 @@ public final class RecadosApp implements NoteFrame.Host {
     }
 
     private void showAbout() {
-        JOptionPane.showMessageDialog(null,
+        JOptionPane.showMessageDialog(anyFrame(),
                 "Recados 1.0.0\nNotas na area de trabalho, em Java 21 + Swing.\n\nNotas salvas em:\n"
                         + store.baseDir(),
                 "Sobre o Recados", JOptionPane.INFORMATION_MESSAGE);
@@ -314,6 +315,13 @@ public final class RecadosApp implements NoteFrame.Host {
         // sem decoracao e sempre-no-topo, a versao leve deixa rastro sobre os botoes.
         ToolTipManager.sharedInstance().setLightWeightPopupEnabled(false);
         JPopupMenu.setDefaultLightWeightPopupEnabled(false);
+
+        // Dialogo criado com pai null usa este frame escondido do Swing, que aparece na barra
+        // de tarefas com o icone padrao do Java. Dando o nosso icone a ele, nenhuma janela do
+        // Recados mostra o cafezinho -- nem se algum dialogo futuro esquecer de passar o pai.
+        if (JOptionPane.getRootFrame() instanceof Frame shared) {
+            shared.setIconImages(Icons.appIcons());
+        }
     }
 
     /** Evita duas instancias brigando pelos mesmos arquivos. */

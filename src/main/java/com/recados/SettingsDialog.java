@@ -39,6 +39,7 @@ public final class SettingsDialog extends JDialog {
     public SettingsDialog(Window owner, NoteStore store) {
         super(owner, "Configuracoes do Recados", ModalityType.APPLICATION_MODAL);
         this.store = store;
+        setIconImages(Icons.appIcons()); // dialogo sem icone proprio mostraria o cafezinho
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));

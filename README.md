@@ -39,14 +39,39 @@ Clique com o botão direito em qualquer parte da nota para o menu de contexto.
 O texto salva sozinho meio segundo depois da última tecla, e também ao mover, redimensionar
 ou perder o foco — não existe botão de salvar.
 
+## Ícone próprio na barra de tarefas
+
+```bash
+powershell -ExecutionPolicy Bypass -File package-app.ps1
+```
+
+Gera `target\dist\Recados\Recados.exe` com `jpackage` — um lançador nativo com a nossa nota
+como ícone, e um JRE embutido (não precisa de Java instalado para rodar).
+
+**Por que isso é necessário:** a barra de tarefas do Windows tira o ícone do **executável que
+lançou o processo**, não da janela. Rodando por `javaw.exe`, o botão mostra o cafezinho do Java
+por mais tamanhos de ícone que a janela declare — `setIconImages` resolve o Alt+Tab e a janela,
+não a barra. O que mudaria isso é o `AppUserModelID` do processo, e Java puro não tem como
+definir (precisaria de chamada nativa; a FFM API do Java 21 ainda é preview). Um executável
+próprio resolve sem dependência nativa.
+
+O `.ico` multi-tamanho é gerado pelo próprio app, sem ferramenta externa:
+
+```bash
+java -cp target/recados.jar com.recados.Icons target/recados.ico
+```
+
+Rodar pelo jar continua funcionando — só o ícone da barra de tarefas fica sendo o do Java.
+
 ## Iniciar com o Windows
 
 Abra **Configurações** (menu da bandeja, botão direito na nota, ou `Ctrl+,`) e marque
 **"Iniciar o Recados com o Windows"**. Não precisa rodar nada por fora — a caixa reflete o
 estado real do sistema, e desmarcar desfaz.
 
-Por baixo é um atalho `recados.lnk` na pasta Inicializar do usuário, apontando para `javaw.exe`
-com o jar (sem janela de console). Se você mover a pasta do Recados, desmarque e marque de novo
+Por baixo é um atalho `recados.lnk` na pasta Inicializar do usuário. Ele aponta para o
+`Recados.exe` quando você empacotou com `package-app.ps1`, e para `javaw.exe` + jar quando não
+(sem janela de console nos dois casos). Se você mover a pasta do Recados, desmarque e marque de novo
 para reapontar.
 
 Para instalação automatizada (sem abrir a interface) os mesmos arquivos podem ser criados por
@@ -146,3 +171,4 @@ Nada esvazia a lixeira automaticamente; apagar de vez é decisão sua, no explor
 | [Icons.java](src/main/java/com/recados/Icons.java) | ícone da bandeja, desenhado em runtime |
 | [install-startup.ps1](install-startup.ps1) · [uninstall-startup.ps1](uninstall-startup.ps1) | o mesmo atalho, para instalação por script |
 | [checks/](checks) · [run-checks.ps1](run-checks.ps1) | as checagens e o script que compila e roda |
+| [package-app.ps1](package-app.ps1) | empacota o `Recados.exe` com jpackage, para o ícone da barra de tarefas |
