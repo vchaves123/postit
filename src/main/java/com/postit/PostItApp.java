@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
+import javax.swing.ToolTipManager;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
@@ -253,6 +255,11 @@ public final class PostItApp implements NoteFrame.Host {
         } catch (ReflectiveOperationException | UnsupportedLookAndFeelException e) {
             // o look and feel padrao serve
         }
+
+        // Tooltips e menus em janela nativa propria, nao desenhados dentro da nota: em janela
+        // sem decoracao e sempre-no-topo, a versao leve deixa rastro sobre os botoes.
+        ToolTipManager.sharedInstance().setLightWeightPopupEnabled(false);
+        JPopupMenu.setDefaultLightWeightPopupEnabled(false);
     }
 
     /** Evita duas instancias brigando pelos mesmos arquivos. */

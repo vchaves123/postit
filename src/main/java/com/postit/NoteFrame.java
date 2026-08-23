@@ -1,5 +1,6 @@
 package com.postit;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -8,8 +9,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
@@ -19,7 +18,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.geom.RoundRectangle2D;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -71,7 +69,7 @@ public final class NoteFrame extends JFrame {
     private final JTextArea textArea = new JTextArea();
     private final JPanel header = new JPanel(new BorderLayout());
     private final JPanel footer = new JPanel(new BorderLayout());
-    private final JLabel pinButton;
+    private final GlyphButton pinButton;
     private final Timer saveTimer;
 
     public NoteFrame(Note note, Host host) {
@@ -91,7 +89,7 @@ public final class NoteFrame extends JFrame {
         root.setBorder(BorderFactory.createLineBorder(new Color(0, 0, 0, 70)));
         setContentPane(root);
 
-        this.pinButton = glyphLabel("", "", this::togglePin);
+        this.pinButton = new GlyphButton(Glyph.PIN_ON, "", this::togglePin);
         root.add(buildHeader(), BorderLayout.NORTH);
         root.add(buildBody(), BorderLayout.CENTER);
         root.add(buildFooter(), BorderLayout.SOUTH);
@@ -123,10 +121,11 @@ public final class NoteFrame extends JFrame {
 
         JPanel buttons = new JPanel();
         buttons.setOpaque(false);
-        buttons.add(glyphLabel("+", "Nova nota (Ctrl+N)", () -> host.newNote(this)));
-        buttons.add(glyphLabel("◑", "Trocar a cor (Ctrl+E)", this::cycleColor));
+        buttons.add(new GlyphButton(Glyph.PLUS, "Nova nota (Ctrl+N)", () -> host.newNote(this)));
+        buttons.add(new GlyphButton(Glyph.COLOR, "Trocar a cor (Ctrl+E)", this::cycleColor));
         buttons.add(pinButton);
-        buttons.add(glyphLabel("×", "Apagar esta nota (Ctrl+D)", () -> host.deleteNote(this)));
+        buttons.add(new GlyphButton(Glyph.CLOSE, "Apagar esta nota (Ctrl+D)",
+                () -> host.deleteNote(this)));
         header.add(buttons, BorderLayout.EAST);
 
         DragSupport drag = new DragSupport();
@@ -181,35 +180,90 @@ public final class NoteFrame extends JFrame {
         return footer;
     }
 
-    private JLabel glyphLabel(String glyph, String tooltip, Runnable action) {
-        JLabel label = new JLabel(glyph, JLabel.CENTER);
-        label.setPreferredSize(new Dimension(22, 20));
-        label.setToolTipText(tooltip);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        label.setOpaque(false);
-        label.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                label.setOpaque(true);
-                label.setBackground(new Color(0, 0, 0, 30));
-                label.repaint();
-            }
+    /** Os desenhos dos botoes da barra de titulo. */
+    private enum Glyph { PLUS, COLOR, PIN_ON, PIN_OFF, CLOSE }
 
-            @Override
-            public void mouseExited(MouseEvent e) {
-                label.setOpaque(false);
-                label.repaint();
-            }
+    /**
+     * Botao da barra de titulo. O icone e desenhado, nao escrito: com fonte, glifos como
+     * "◑" saem como quadradinho vazio quando a fonte instalada nao tem o caractere.
+     *
+     * <p>O realce do mouse tambem e pintado aqui dentro, em vez de ligar e desligar
+     * {@code setOpaque} -- alternar isso deixa rastro do fundo antigo.
+     */
+    private final class GlyphButton extends JComponent {
 
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isLeftMouseButton(e)) {
-                    action.run();
+        private static final int SIZE = 22;
+
+        private Glyph glyph;
+        private final Runnable action;
+        private boolean hovered;
+
+        GlyphButton(Glyph glyph, String tooltip, Runnable action) {
+            this.glyph = glyph;
+            this.action = action;
+            setPreferredSize(new Dimension(SIZE, SIZE));
+            setToolTipText(tooltip);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    hovered = true;
+                    repaint();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    hovered = false;
+                    repaint();
+                }
+
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (SwingUtilities.isLeftMouseButton(e)) {
+                        action.run();
+                    }
+                }
+            });
+        }
+
+        void glyph(Glyph glyph) {
+            this.glyph = glyph;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            if (hovered) {
+                g2.setColor(new Color(0, 0, 0, 28));
+                g2.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 6, 6);
+            }
+            g2.setColor(getForeground());
+
+            int box = 10;
+            int x = (getWidth() - box) / 2;
+            int y = (getHeight() - box) / 2;
+            switch (glyph) {
+                case PLUS -> {
+                    g2.drawLine(x, y + box / 2, x + box, y + box / 2);
+                    g2.drawLine(x + box / 2, y, x + box / 2, y + box);
+                }
+                case COLOR -> {
+                    g2.drawOval(x, y, box, box);
+                    g2.fillArc(x, y, box, box, 90, 180); // metade cheia: "trocar a cor"
+                }
+                case PIN_ON -> g2.fillOval(x + 1, y + 1, box - 2, box - 2);
+                case PIN_OFF -> g2.drawOval(x + 1, y + 1, box - 2, box - 2);
+                case CLOSE -> {
+                    g2.drawLine(x, y, x + box, y + box);
+                    g2.drawLine(x + box, y, x, y + box);
                 }
             }
-        });
-        return label;
+            g2.dispose();
+        }
     }
 
     // -------------------------------------------------------------- comportamento
@@ -247,7 +301,6 @@ public final class NoteFrame extends JFrame {
             @Override
             public void componentResized(ComponentEvent e) {
                 note.size(getWidth(), getHeight());
-                applyRoundedShape();
                 scheduleSave();
             }
         });
@@ -285,18 +338,6 @@ public final class NoteFrame extends JFrame {
         }
     }
 
-    private void applyRoundedShape() {
-        GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
-        if (!device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSPARENT)) {
-            return;
-        }
-        try {
-            setShape(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 12, 12));
-        } catch (UnsupportedOperationException ignored) {
-            // sem cantos arredondados nesta plataforma; a janela continua funcionando
-        }
-    }
-
     private void cycleColor() {
         note.colorIndex(Palette.next(note.colorIndex()));
         applyPalette();
@@ -311,7 +352,7 @@ public final class NoteFrame extends JFrame {
     }
 
     private void refreshPinButton() {
-        pinButton.setText(note.alwaysOnTop() ? "●" : "○");
+        pinButton.glyph(note.alwaysOnTop() ? Glyph.PIN_ON : Glyph.PIN_OFF);
         pinButton.setToolTipText(note.alwaysOnTop()
                 ? "Fixada no topo; clique para soltar (Ctrl+T)"
                 : "Solta; clique para fixar no topo (Ctrl+T)");
