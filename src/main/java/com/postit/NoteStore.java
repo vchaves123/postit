@@ -22,6 +22,7 @@ public final class NoteStore {
     private static final String EXTENSION = ".properties";
 
     private final Path dir;
+    private final Path trashDir;
 
     public NoteStore() {
         this(Path.of(System.getProperty("user.home"), ".postit"));
@@ -29,11 +30,13 @@ public final class NoteStore {
 
     public NoteStore(Path baseDir) {
         this.dir = baseDir.resolve("notes");
+        this.trashDir = baseDir.resolve("trash");
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {
             throw new UncheckedIOException("Nao foi possivel criar " + dir, e);
         }
+        // a lixeira e criada so quando alguem apaga a primeira nota
     }
 
     public Path baseDir() {
@@ -106,11 +109,44 @@ public final class NoteStore {
         }
     }
 
-    public void delete(Note note) {
+    /**
+     * Manda a nota para a lixeira em vez de remover o arquivo, para que apagar por engano
+     * deixe de ser definitivo. O carimbo de tempo no nome evita que apagar duas notas com
+     * o mesmo id (nota restaurada e apagada de novo) sobrescreva a copia anterior.
+     *
+     * @return {@code false} se nao deu para mover -- nesse caso a nota fica onde esta,
+     *         e volta no proximo inicio, em vez de sumir sem aviso.
+     */
+    public boolean delete(Note note) {
+        Path source = dir.resolve(note.id() + EXTENSION);
+        if (!Files.exists(source)) {
+            return true; // nota que nunca chegou ao disco
+        }
         try {
-            Files.deleteIfExists(dir.resolve(note.id() + EXTENSION));
+            Files.createDirectories(trashDir);
+            Path target = trashDir.resolve(note.id() + "-" + System.currentTimeMillis() + EXTENSION);
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            return true;
         } catch (IOException e) {
-            System.err.println("Falha ao apagar nota " + note.id() + ": " + e.getMessage());
+            System.err.println("Falha ao mover nota " + note.id() + " para a lixeira: "
+                    + e.getMessage());
+            return false;
+        }
+    }
+
+    public Path trashDir() {
+        return trashDir;
+    }
+
+    /** Se ha algo para o usuario recuperar. */
+    public boolean trashHasNotes() {
+        if (!Files.isDirectory(trashDir)) {
+            return false;
+        }
+        try (Stream<Path> files = Files.list(trashDir)) {
+            return files.anyMatch(p -> p.getFileName().toString().endsWith(EXTENSION));
+        } catch (IOException e) {
+            return false;
         }
     }
 

@@ -151,9 +151,16 @@ public final class PostItApp implements NoteFrame.Host {
         if (!frame.confirmDelete()) {
             return;
         }
+        if (!store.delete(frame.note())) {
+            // nao fecha a janela: a nota continua no disco, e sumir da tela seria mentira
+            JOptionPane.showMessageDialog(frame,
+                    "Nao foi possivel mover a nota para a lixeira em\n" + store.trashDir()
+                            + "\n\nA nota continua salva.",
+                    "postit", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         frames.remove(frame.note().id());
-        store.delete(frame.note());
-        frame.dispose();
+        frame.discard();
         refreshTrayMenu();
         if (frames.isEmpty() && trayIcon == null) {
             // sem bandeja nao haveria como voltar: abre uma nota nova
@@ -169,7 +176,7 @@ public final class PostItApp implements NoteFrame.Host {
 
     @Override
     public void openSettings(NoteFrame origin) {
-        new SettingsDialog(origin, store.notesDir()).setVisible(true);
+        new SettingsDialog(origin, store).setVisible(true);
     }
 
     @Override

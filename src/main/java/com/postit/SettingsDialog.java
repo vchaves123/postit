@@ -31,14 +31,14 @@ public final class SettingsDialog extends JDialog {
 
     private static final int TEXT_WIDTH = 340;
 
-    private final Path notesDir;
+    private final NoteStore store;
     private final JCheckBox autostartBox = new JCheckBox("Iniciar o postit com o Windows");
     private final JLabel autostartHint = new JLabel();
     private final JButton closeButton = new JButton("Fechar");
 
-    public SettingsDialog(Window owner, Path notesDir) {
+    public SettingsDialog(Window owner, NoteStore store) {
         super(owner, "Configuracoes do postit", ModalityType.APPLICATION_MODAL);
-        this.notesDir = notesDir;
+        this.store = store;
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -79,15 +79,29 @@ public final class SettingsDialog extends JDialog {
         JPanel panel = column();
         panel.add(leftAligned(sectionTitle("Notas")));
 
-        JLabel path = new JLabel(notesDir.toString());
+        JLabel path = new JLabel(store.notesDir().toString());
         path.setFont(path.getFont().deriveFont(Font.PLAIN, 11f));
         path.setForeground(new Color(0x5A5A5A));
         panel.add(leftAligned(path));
         panel.add(Box.createVerticalStrut(6));
 
-        JButton open = new JButton("Abrir a pasta das notas");
-        open.addActionListener(e -> openNotesDir());
-        panel.add(leftAligned(open));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        buttons.setOpaque(false);
+        JButton openNotes = new JButton("Abrir a pasta das notas");
+        openNotes.addActionListener(e -> openFolder(store.notesDir()));
+        buttons.add(openNotes);
+        buttons.add(Box.createHorizontalStrut(8));
+
+        JButton openTrash = new JButton("Abrir a lixeira");
+        boolean hasTrash = store.trashHasNotes();
+        openTrash.setEnabled(hasTrash);
+        openTrash.setToolTipText(hasTrash
+                ? "Para restaurar, mova o arquivo da nota de volta para a pasta das notas"
+                : "A lixeira esta vazia");
+        openTrash.addActionListener(e -> openFolder(store.trashDir()));
+        buttons.add(openTrash);
+
+        panel.add(leftAligned(buttons));
         return panel;
     }
 
@@ -144,17 +158,17 @@ public final class SettingsDialog extends JDialog {
         }
     }
 
-    private void openNotesDir() {
+    private void openFolder(Path folder) {
         if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-            JOptionPane.showMessageDialog(this, notesDir.toString(),
-                    "Pasta das notas", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, folder.toString(),
+                    "postit", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         try {
-            Desktop.getDesktop().open(notesDir.toFile());
+            Desktop.getDesktop().open(folder.toFile());
         } catch (IOException | IllegalArgumentException e) {
             JOptionPane.showMessageDialog(this,
-                    "Nao foi possivel abrir a pasta:\n" + notesDir + "\n\n" + e.getMessage(),
+                    "Nao foi possivel abrir a pasta:\n" + folder + "\n\n" + e.getMessage(),
                     "postit", JOptionPane.ERROR_MESSAGE);
         }
     }

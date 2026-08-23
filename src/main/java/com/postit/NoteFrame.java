@@ -72,6 +72,9 @@ public final class NoteFrame extends JFrame {
     private final GlyphButton pinButton;
     private final Timer saveTimer;
 
+    /** Nota apagada: nada mais deve ser gravado a partir desta janela. */
+    private boolean discarded;
+
     public NoteFrame(Note note, Host host) {
         super("postit");
         this.note = note;
@@ -402,14 +405,32 @@ public final class NoteFrame extends JFrame {
 
     /** Marca a nota como suja; o disco so e tocado depois de meio segundo sem digitacao. */
     public void scheduleSave() {
+        if (discarded) {
+            return;
+        }
         saveTimer.restart();
     }
 
     /** Grava agora o que estiver pendente. */
     public void flush() {
         saveTimer.stop();
+        if (discarded) {
+            return;
+        }
         note.text(textArea.getText());
         host.saveNote(note);
+    }
+
+    /**
+     * Fecha a janela de uma nota que deixou de existir. Tem que passar por aqui em vez de
+     * chamar {@code dispose()} direto: dispose nao para o timer de autosave, e um save
+     * pendente disparando depois do apagar regrava o arquivo -- a nota ressuscitava na
+     * lixeira e em notes ao mesmo tempo, e voltava no proximo inicio.
+     */
+    public void discard() {
+        discarded = true;
+        saveTimer.stop();
+        dispose();
     }
 
     /** Pergunta antes de apagar, exceto quando a nota esta vazia. */
@@ -418,8 +439,8 @@ public final class NoteFrame extends JFrame {
             return true;
         }
         int answer = JOptionPane.showConfirmDialog(this,
-                "Apagar esta nota? Nao da para desfazer.",
-                "postit", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                "Apagar esta nota? Ela vai para a lixeira do postit.",
+                "postit", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         return answer == JOptionPane.YES_OPTION;
     }
 
