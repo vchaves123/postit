@@ -1,4 +1,4 @@
-| Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores; a padrão é azul) |# Recados
+# Recados
 
 Notas adesivas na área de trabalho, em **Java 21 + Swing**. Cada nota é uma janelinha colorida sem
 decoração do sistema, que se lembra de onde estava, do tamanho, da cor e se fica no topo.
@@ -25,7 +25,7 @@ No Linux/macOS, use `./recados.sh`.
 | Mover a nota | arraste pela barra colorida de cima |
 | Redimensionar | arraste a alça no canto inferior direito |
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
-| Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores) |
+| Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores; a padrão é azul) |
 | Formatar texto | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, listas e links no menu **Formatar** |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Minimizar a nota | botão da barra ou `Ctrl+W` — **não apaga**, volta pela bandeja |
