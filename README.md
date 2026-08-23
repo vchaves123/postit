@@ -27,7 +27,8 @@ No Linux/macOS, use `./recados.sh`.
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
 | Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores) |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
-| Apagar a nota | botão `×` ou `Ctrl+D` — vai para a lixeira, com confirmação se tiver texto |
+| Fechar a nota | botão `×`, `Ctrl+W`, ou Alt+F4 — **não apaga**, a nota volta pela bandeja |
+| Apagar a nota | `Ctrl+D` ou o menu de contexto — sempre pede confirmação, e vai para a lixeira |
 | Mostrar todas as notas | `Ctrl+Shift+A` ou clique no ícone da bandeja |
 | Configurações | `Ctrl+,`, menu da bandeja, ou menu de contexto |
 | Sair | `Ctrl+Q` ou o menu da bandeja |
@@ -72,6 +73,16 @@ inicialização" nas configurações do Windows e é I/O puro para consultar e r
 uma nota nunca mexe nas outras, e a gravação é atômica (arquivo temporário + `move`), então
 uma falha no meio não deixa nota truncada. Um `.lock` no diretório impede duas instâncias
 brigando pelos mesmos arquivos.
+
+### Fechar não é apagar
+
+O `×` da barra de título **fecha** a nota, seguindo a convenção de qualquer janela: ela continua
+no disco, aparece marcada como `(fechada)` na lista da bandeja, e voltar é um clique ali. O
+estado fica gravado em `visible=`, então nota fechada continua fechada no próximo início.
+
+Apagar é ação separada e explícita — `Ctrl+D` ou o menu de contexto — e **sempre** pede
+confirmação, inclusive em nota em branco. Antes o `×` apagava e a nota vazia ia embora sem
+perguntar, o que transformava um clique no lugar errado em perda silenciosa.
 
 ### Lixeira
 

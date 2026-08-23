@@ -104,6 +104,7 @@ public final class NoteStore {
                 parseInt(props.getProperty("height"), Note.DEFAULT_HEIGHT));
         note.colorIndex(parseInt(props.getProperty("colorIndex"), 0));
         note.alwaysOnTop(Boolean.parseBoolean(props.getProperty("alwaysOnTop", "true")));
+        note.visible(Boolean.parseBoolean(props.getProperty("visible", "true")));
         return note;
     }
 
@@ -118,6 +119,7 @@ public final class NoteStore {
         props.setProperty("height", Integer.toString(note.height()));
         props.setProperty("colorIndex", Integer.toString(note.colorIndex()));
         props.setProperty("alwaysOnTop", Boolean.toString(note.alwaysOnTop()));
+        props.setProperty("visible", Boolean.toString(note.visible()));
 
         Path target = dir.resolve(note.id() + EXTENSION);
         Path temp = dir.resolve(note.id() + EXTENSION + ".tmp");

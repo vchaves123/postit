@@ -20,6 +20,7 @@ public final class Note {
     private int height;
     private int colorIndex;
     private boolean alwaysOnTop;
+    private boolean visible;
 
     public Note(String id, long createdAt) {
         this.id = id;
@@ -28,6 +29,7 @@ public final class Note {
         this.width = DEFAULT_WIDTH;
         this.height = DEFAULT_HEIGHT;
         this.alwaysOnTop = true;
+        this.visible = true;
     }
 
     public static Note create() {
@@ -61,6 +63,13 @@ public final class Note {
 
     public boolean alwaysOnTop() { return alwaysOnTop; }
     public void alwaysOnTop(boolean alwaysOnTop) { this.alwaysOnTop = alwaysOnTop; }
+
+    /**
+     * Se a janela da nota esta aberta. Fechar uma nota nao a apaga: ela continua no disco
+     * e na lista da bandeja, e volta quando o usuario mandar mostrar de novo.
+     */
+    public boolean visible() { return visible; }
+    public void visible(boolean visible) { this.visible = visible; }
 
     /** Primeira linha nao vazia, usada nos menus. */
     public String title() {

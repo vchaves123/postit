@@ -47,6 +47,9 @@ public final class NoteFrame extends JFrame {
     public interface Host {
         void newNote(NoteFrame origin);
 
+        /** Fecha a janela sem apagar a nota. */
+        void closeNote(NoteFrame frame);
+
         void deleteNote(NoteFrame frame);
 
         void saveNote(Note note);
@@ -127,8 +130,10 @@ public final class NoteFrame extends JFrame {
         buttons.add(new GlyphButton(Glyph.PLUS, "Nova nota (Ctrl+N)", () -> host.newNote(this)));
         buttons.add(new GlyphButton(Glyph.COLOR, "Trocar a cor (Ctrl+E)", this::cycleColor));
         buttons.add(pinButton);
-        buttons.add(new GlyphButton(Glyph.CLOSE, "Apagar esta nota (Ctrl+D)",
-                () -> host.deleteNote(this)));
+        // O "x" fecha, nao apaga: numa janela sem decoracao ele e o gesto universal de
+        // fechar, e quem clica nele nao esta pedindo para perder o texto.
+        buttons.add(new GlyphButton(Glyph.CLOSE, "Fechar esta nota (Ctrl+W) -- nao apaga",
+                () -> host.closeNote(this)));
         header.add(buttons, BorderLayout.EAST);
 
         DragSupport drag = new DragSupport();
@@ -273,6 +278,7 @@ public final class NoteFrame extends JFrame {
 
     private void installShortcuts() {
         bind("control N", () -> host.newNote(this));
+        bind("control W", () -> host.closeNote(this));
         bind("control D", () -> host.deleteNote(this));
         bind("control E", this::cycleColor);
         bind("control T", this::togglePin);
@@ -315,7 +321,8 @@ public final class NoteFrame extends JFrame {
 
             @Override
             public void windowClosing(WindowEvent e) {
-                flush();
+                // Alt+F4 e fechar, igual ao "x": nunca apaga
+                host.closeNote(NoteFrame.this);
             }
         });
     }
@@ -387,10 +394,11 @@ public final class NoteFrame extends JFrame {
         menu.add(item("Trocar a cor", this::cycleColor));
         menu.add(item(note.alwaysOnTop() ? "Soltar do topo" : "Fixar no topo", this::togglePin));
         menu.addSeparator();
+        menu.add(item("Fechar esta nota", () -> host.closeNote(this)));
         menu.add(item("Mostrar todas as notas", host::showAll));
         menu.add(item("Configuracoes...", () -> host.openSettings(this)));
         menu.addSeparator();
-        menu.add(item("Apagar esta nota", () -> host.deleteNote(this)));
+        menu.add(item("Apagar esta nota...", () -> host.deleteNote(this)));
         menu.add(item("Sair do Recados", host::quit));
         return menu;
     }
@@ -433,15 +441,23 @@ public final class NoteFrame extends JFrame {
         dispose();
     }
 
-    /** Pergunta antes de apagar, exceto quando a nota esta vazia. */
+    /**
+     * Pergunta antes de apagar -- sempre, inclusive com a nota em branco. Antes a nota
+     * vazia era apagada sem perguntar, e isso transformava um clique errado em perda
+     * silenciosa.
+     */
     public boolean confirmDelete() {
-        if (textArea.getText().isBlank()) {
-            return true;
-        }
         int answer = JOptionPane.showConfirmDialog(this,
-                "Apagar esta nota? Ela vai para a lixeira do Recados.",
+                "Apagar esta nota? Ela vai para a lixeira do Recados.\n\n"
+                        + "Para so tirar da tela, feche com o x ou Ctrl+W.",
                 "Recados", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         return answer == JOptionPane.YES_OPTION;
+    }
+
+    /** Tira a janela da tela depois de gravar. A nota continua no disco. */
+    public void closeWindow() {
+        flush();
+        dispose();
     }
 
     public void focusText() {
