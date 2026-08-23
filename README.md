@@ -25,8 +25,8 @@ No Linux/macOS, use `./postit.sh`.
 | Mover a nota | arraste pela barra colorida de cima |
 | Redimensionar | arraste a alça no canto inferior direito |
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
-| Trocar a cor | botão `◑` ou `Ctrl+E` (6 cores) |
-| Fixar/soltar no topo | botão `●`/`○` ou `Ctrl+T` |
+| Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores) |
+| Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Apagar a nota | botão `×` ou `Ctrl+D` — vai para a lixeira, com confirmação se tiver texto |
 | Mostrar todas as notas | `Ctrl+Shift+A` ou clique no ícone da bandeja |
 | Configurações | `Ctrl+,`, menu da bandeja, ou menu de contexto |
