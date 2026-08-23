@@ -44,7 +44,6 @@ if (-not (Test-Path $jpackage)) { $jpackage = (Get-Command jpackage.exe).Source 
     --main-jar 'recados.jar' `
     --main-class 'com.recados.RecadosApp' `
     --icon $ico `
-    --java-options "-Dsun.java2d.uiScale=1" `
     --dest $dist
 if ($LASTEXITCODE -ne 0) { Write-Error 'jpackage falhou.' }
 

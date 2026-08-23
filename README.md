@@ -164,18 +164,35 @@ dependência de teste no `pom.xml` e sem depender de um processo que o antivíru
 
 ## Dois monitores com escalas diferentes
 
-Os lançadores passam `-Dsun.java2d.uiScale=1`, que mantém **uma escala só** em todos os
-monitores. Sem isso, arrastar a nota entre um monitor a 100% e outro a 125% dava dois
-problemas: o Java reinterpretava o tamanho na escala nova — `280x260` chegava como `350x325` —
-e as coordenadas eram remapeadas na faixa da borda, então a nota saltava de volta e parecia não
-atravessar.
+Arrastar a nota entre um monitor a 100% e outro a 150% dava dois problemas, com causas
+diferentes. Os dois estão corrigidos, e o app usa a escala do sistema em cada monitor.
 
-O tamanho está resolvido no código: **só a alça** muda o tamanho gravado, e qualquer mudança
-vinda de fora é desfeita. O salto de coordenadas é do Java, e a escala única é o que o elimina.
+**A nota crescia.** O Java reinterpreta o tamanho na escala do monitor novo: `280x260` chega
+como `350x325` num monitor a 125%. Isso era gravado, então a nota inflava a cada travessia,
+para sempre. Agora **só a alça** muda o tamanho gravado; qualquer mudança que venha de fora é
+desfeita.
 
-O custo: num monitor a 125% ou mais, a nota fica no tamanho de 100%, ou seja, um pouco menor.
-Se você preferir a escala do sistema à travessia suave, tire o `-Dsun.java2d.uiScale=1` de
-[recados.bat](recados.bat), [recados.sh](recados.sh) e [package-app.ps1](package-app.ps1).
+**A nota saltava e voltava.** Com escalas mistas o espaço de coordenadas tem um **vão**: um
+monitor de 1920 px a 150% ocupa 1280 unidades, então a faixa entre o fim dele e o início do
+outro não pertence a monitor nenhum:
+
+```
+Display0 (150%):  x de -1920 a -640      Display1 (100%):  x de 0 a 1920
+                            └── vão de -640 a 0 ──┘
+```
+
+Pedir uma posição nesse vão dá resultado imprevisível — medindo aqui, `x=-200` virou `x=660`.
+E não há transformação para inverter: compensar subtraindo o erro observado errava por 1010 px.
+O que existe é uma regra, verificada na medição: **posição dentro da faixa válida de um monitor
+é obedecida ao pixel**.
+
+Então, durante o arraste, a nota fica ancorada no monitor onde está o ponteiro. Ela acompanha o
+cursor, para na borda enquanto o ponteiro ainda está do outro lado, salta para a borda oposta
+quando o ponteiro atravessa, e volta a acompanhar livremente.
+
+O custo: em configuração de escalas mistas, a nota não fica meio em cada monitor durante o
+arraste. Em monitor único, ou com todos na mesma escala, nada muda — inclusive continua dando
+para deixar a nota meio fora da tela.
 
 ## Onde as notas ficam
 
