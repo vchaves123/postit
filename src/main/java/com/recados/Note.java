@@ -14,6 +14,7 @@ public final class Note {
     private final String id;
     private final long createdAt;
     private String text;
+    private String rtf;
     private int x;
     private int y;
     private int width;
@@ -26,6 +27,7 @@ public final class Note {
         this.id = id;
         this.createdAt = createdAt;
         this.text = "";
+        this.rtf = "";
         this.width = DEFAULT_WIDTH;
         this.height = DEFAULT_HEIGHT;
         this.alwaysOnTop = true;
@@ -41,6 +43,14 @@ public final class Note {
 
     public String text() { return text; }
     public void text(String text) { this.text = text == null ? "" : text; }
+
+    /**
+     * O mesmo conteudo em RTF, com negrito, italico e sublinhado. Vazio numa nota sem
+     * formatacao ou gravada por uma versao anterior -- nesse caso vale o {@link #text()}.
+     * Os dois sao gravados juntos: o texto puro mantem o arquivo legivel e pesquisavel.
+     */
+    public String rtf() { return rtf; }
+    public void rtf(String rtf) { this.rtf = rtf == null ? "" : rtf; }
 
     public int x() { return x; }
     public int y() { return y; }

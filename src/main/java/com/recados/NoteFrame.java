@@ -12,6 +12,11 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
@@ -19,23 +24,32 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
+import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.StyledEditorKit;
+import javax.swing.text.rtf.RTFEditorKit;
 
 /**
  * A janela de uma nota: sem decoracao do sistema, arrastavel pela barra de titulo propria
@@ -67,9 +81,19 @@ public final class NoteFrame extends JFrame {
     private static final int MIN_WIDTH = 160;
     private static final int MIN_HEIGHT = 120;
 
+    /** Um por classe: o kit nao guarda estado do documento. */
+    private static final RTFEditorKit RTF = new RTFEditorKit();
+
+    /**
+     * O RTFEditorKit trabalha em bytes -- passar Reader ou Writer para ele levanta
+     * "RTF is an 8-bit format". Latin-1 mapeia byte a caractere sem perder nada, entao o
+     * RTF cabe numa String e volta identico.
+     */
+    private static final Charset RTF_CHARSET = StandardCharsets.ISO_8859_1;
+
     private final Note note;
     private final Host host;
-    private final JTextArea textArea = new JTextArea();
+    private final JTextPane textPane = new JTextPane();
     private final JPanel header = new JPanel(new BorderLayout());
     private final JPanel footer = new JPanel(new BorderLayout());
     private final GlyphButton pinButton;
@@ -107,8 +131,7 @@ public final class NoteFrame extends JFrame {
 
         setSize(note.width(), note.height());
         setLocation(note.x(), note.y());
-        textArea.setText(note.text());
-        textArea.setCaretPosition(0);
+        loadContent();
     }
 
     public Note note() {
@@ -147,12 +170,11 @@ public final class NoteFrame extends JFrame {
     }
 
     private JComponent buildBody() {
-        textArea.setLineWrap(true);
-        textArea.setWrapStyleWord(true);
-        textArea.setOpaque(false);
-        textArea.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-        textArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        textArea.getDocument().addDocumentListener(new DocumentListener() {
+        textPane.setOpaque(false);
+        textPane.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        textPane.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        installStyleShortcuts();
+        textPane.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
                 scheduleSave();
@@ -168,9 +190,9 @@ public final class NoteFrame extends JFrame {
                 scheduleSave();
             }
         });
-        attachPopup(textArea);
+        attachPopup(textPane);
 
-        JScrollPane scroll = new JScrollPane(textArea);
+        JScrollPane scroll = new JScrollPane(textPane);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
@@ -185,6 +207,109 @@ public final class NoteFrame extends JFrame {
         footer.add(new ResizeGrip(), BorderLayout.EAST);
         attachPopup(footer);
         return footer;
+    }
+
+    // -------------------------------------------------------------- texto rico
+
+    /**
+     * Le o conteudo da nota: o RTF quando existir, o texto puro quando nao. Nota gravada
+     * por uma versao anterior so tem texto puro, e abre normalmente.
+     */
+    private void loadContent() {
+        String rich = note.rtf();
+        if (!rich.isBlank()) {
+            try {
+                Document doc = textPane.getDocument();
+                doc.remove(0, doc.getLength());
+                RTF.read(new ByteArrayInputStream(rich.getBytes(RTF_CHARSET)), doc, 0);
+                textPane.setCaretPosition(0);
+                applyTextColor();
+                return;
+            } catch (IOException | BadLocationException e) {
+                System.err.println("Formatacao da nota " + note.id() + " ilegivel ("
+                        + e.getMessage() + "); abrindo o texto puro.");
+            }
+        }
+        textPane.setText(note.text());
+        textPane.setCaretPosition(0);
+        applyTextColor();
+    }
+
+    private String plainText() {
+        Document doc = textPane.getDocument();
+        try {
+            return doc.getText(0, doc.getLength());
+        } catch (BadLocationException e) {
+            return note.text(); // nao troca por vazio: perder texto e pior que nao salvar
+        }
+    }
+
+    /** O documento em RTF, ou vazio se falhar -- perder a formatacao e melhor que o texto. */
+    private String richText() {
+        Document doc = textPane.getDocument();
+        if (doc.getLength() == 0) {
+            return "";
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            RTF.write(out, doc, 0, doc.getLength());
+            return out.toString(RTF_CHARSET);
+        } catch (IOException | BadLocationException e) {
+            System.err.println("Nao foi possivel gravar a formatacao da nota " + note.id()
+                    + ": " + e.getMessage());
+            return "";
+        }
+    }
+
+    private void installStyleShortcuts() {
+        bindStyle("control B", new StyledEditorKit.BoldAction());
+        bindStyle("control I", new StyledEditorKit.ItalicAction());
+        bindStyle("control U", new StyledEditorKit.UnderlineAction());
+    }
+
+    private void bindStyle(String keyStroke, Action action) {
+        String name = "recados-estilo:" + keyStroke;
+        textPane.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(keyStroke), name);
+        textPane.getActionMap().put(name, action);
+    }
+
+    /** Dispara uma acao de estilo como se tivesse vindo do teclado. */
+    private void applyStyle(Action action) {
+        action.actionPerformed(new ActionEvent(textPane, ActionEvent.ACTION_PERFORMED, ""));
+        scheduleSave();
+    }
+
+    /** Tira negrito, italico e sublinhado da selecao -- ou da nota toda, se nao houver. */
+    private void clearFormatting() {
+        StyledDocument doc = textPane.getStyledDocument();
+        int start = textPane.getSelectionStart();
+        int end = textPane.getSelectionEnd();
+        if (start == end) {
+            start = 0;
+            end = doc.getLength();
+        }
+        SimpleAttributeSet plain = new SimpleAttributeSet();
+        StyleConstants.setBold(plain, false);
+        StyleConstants.setItalic(plain, false);
+        StyleConstants.setUnderline(plain, false);
+        doc.setCharacterAttributes(start, end - start, plain, false);
+        scheduleSave();
+    }
+
+    /**
+     * A cor do texto vem da paleta da nota, nao do RTF. Sem reaplicar aqui, o RTF traz de
+     * volta a cor de quando foi gravado e trocar a cor da nota deixava o texto na cor velha.
+     */
+    private void applyTextColor() {
+        Color color = note.palette().text();
+        textPane.setForeground(color);
+        textPane.setCaretColor(color);
+        StyledDocument doc = textPane.getStyledDocument();
+        if (doc.getLength() > 0) {
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setForeground(attrs, color);
+            doc.setCharacterAttributes(0, doc.getLength(), attrs, false);
+        }
     }
 
     /** Os desenhos dos botoes da barra de titulo. */
@@ -332,9 +457,8 @@ public final class NoteFrame extends JFrame {
         getContentPane().setBackground(palette.body());
         header.setBackground(palette.header());
         footer.setBackground(palette.body());
-        textArea.setForeground(palette.text());
-        textArea.setCaretColor(palette.text());
-        textArea.setSelectionColor(palette.header().darker());
+        textPane.setSelectionColor(palette.header().darker());
+        applyTextColor();
         paintForeground(header, palette.text());
         repaint();
     }
@@ -390,6 +514,8 @@ public final class NoteFrame extends JFrame {
 
     private JPopupMenu buildPopup() {
         JPopupMenu menu = new JPopupMenu();
+        menu.add(buildFormatMenu());
+        menu.addSeparator();
         menu.add(item("Nova nota", () -> host.newNote(this)));
         menu.add(item("Trocar a cor", this::cycleColor));
         menu.add(item(note.alwaysOnTop() ? "Soltar do topo" : "Fixar no topo", this::togglePin));
@@ -400,6 +526,18 @@ public final class NoteFrame extends JFrame {
         menu.addSeparator();
         menu.add(item("Apagar esta nota...", () -> host.deleteNote(this)));
         menu.add(item("Sair do Recados", host::quit));
+        return menu;
+    }
+
+    /** Formatacao da selecao; sem selecao, o estilo vale para o que for digitado em seguida. */
+    private JMenu buildFormatMenu() {
+        JMenu menu = new JMenu("Formatar");
+        menu.add(item("Negrito (Ctrl+B)", () -> applyStyle(new StyledEditorKit.BoldAction())));
+        menu.add(item("Italico (Ctrl+I)", () -> applyStyle(new StyledEditorKit.ItalicAction())));
+        menu.add(item("Sublinhado (Ctrl+U)",
+                () -> applyStyle(new StyledEditorKit.UnderlineAction())));
+        menu.addSeparator();
+        menu.add(item("Limpar formatacao", this::clearFormatting));
         return menu;
     }
 
@@ -425,7 +563,8 @@ public final class NoteFrame extends JFrame {
         if (discarded) {
             return;
         }
-        note.text(textArea.getText());
+        note.text(plainText());
+        note.rtf(richText());
         host.saveNote(note);
     }
 
@@ -463,7 +602,7 @@ public final class NoteFrame extends JFrame {
     public void focusText() {
         toFront();
         requestFocus();
-        textArea.requestFocusInWindow();
+        textPane.requestFocusInWindow();
     }
 
     // ------------------------------------------------- arrastar e redimensionar

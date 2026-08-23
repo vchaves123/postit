@@ -26,6 +26,7 @@ No Linux/macOS, use `./recados.sh`.
 | Redimensionar | arraste a alça no canto inferior direito |
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
 | Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores) |
+| Negrito / itálico / sublinhado | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, ou o menu **Formatar** |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Minimizar a nota | botão da barra ou `Ctrl+W` — **não apaga**, volta pela bandeja |
 | Apagar a nota | `Ctrl+D` ou o menu de contexto — sempre pede confirmação, e vai para a lixeira |
@@ -66,6 +67,42 @@ executável entre aspas **a partir de um processo Java** é barrado pela proteç
 `CreateProcess` do `reg.exe` volta com `Access is denied`, e depois disso todo `reg.exe` daquele
 processo é negado. O atalho na pasta Inicializar passa limpo, aparece em "Aplicativos de
 inicialização" nas configurações do Windows e é I/O puro para consultar e remover.
+
+## Texto rico
+
+Negrito, itálico e sublinhado, por `Ctrl+B` / `Ctrl+I` / `Ctrl+U` ou pelo menu **Formatar** do
+clique direito. Com texto selecionado, formata a seleção; sem seleção, vale para o que você
+digitar em seguida. **Limpar formatação** tira os três da seleção — ou da nota toda, se não
+houver seleção.
+
+A cor do texto continua vindo da paleta da nota, não do documento: trocar a cor recolore tudo,
+em vez de deixar o texto antigo na cor antiga.
+
+Cada nota grava **os dois formatos**: `rtf=` com a formatação e `text=` com o texto puro. O
+texto puro mantém o arquivo legível e pesquisável com `grep`, e é o que aparece na lista da
+bandeja. Nota gravada por uma versão anterior tem só `text=` e abre normalmente; se o RTF
+estiver corrompido, a nota abre pelo texto puro em vez de falhar.
+
+Detalhe de implementação que custou um bug: o `RTFEditorKit` do Swing é **8-bit** e recusa
+`Reader`/`Writer` com `RTF is an 8-bit format`. A serialização usa fluxo de bytes, mapeados
+para `String` em Latin-1, que preserva byte a byte.
+
+## Checagens
+
+```bash
+powershell -ExecutionPolicy Bypass -File run-checks.ps1
+```
+
+No Linux/macOS, `./run-checks.sh`. Cada grupo usa um diretório temporário próprio, então as
+checagens nunca tocam as suas notas.
+
+Cobrem lixeira e restauração, a migração de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem
+minimizar, apagar sem ressuscitar, e o ida-e-volta do texto rico.
+
+**Por que não JUnit e `mvn test`:** nesta máquina o Kaspersky encerra o booter do
+maven-surefire como `PDM:Trojan.Win32.Generic`, então `mvn test` nunca chega a rodar. As
+checagens são classes Java comuns, compiladas contra o jar e executadas direto — sem
+dependência de teste no `pom.xml` e sem depender de um processo que o antivírus mata.
 
 ## Onde as notas ficam
 
@@ -108,3 +145,4 @@ Nada esvazia a lixeira automaticamente; apagar de vez é decisão sua, no explor
 | [Palette.java](src/main/java/com/recados/Palette.java) | as 6 cores |
 | [Icons.java](src/main/java/com/recados/Icons.java) | ícone da bandeja, desenhado em runtime |
 | [install-startup.ps1](install-startup.ps1) · [uninstall-startup.ps1](uninstall-startup.ps1) | o mesmo atalho, para instalação por script |
+| [checks/](checks) · [run-checks.ps1](run-checks.ps1) | as checagens e o script que compila e roda |
