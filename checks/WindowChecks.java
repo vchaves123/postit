@@ -15,6 +15,42 @@ public final class WindowChecks {
         minimizarPreservaANota();
         wmCloseNaoMinimiza();
         apagarNaoRessuscita();
+        somenteAAlcaRedimensiona();
+    }
+
+    /**
+     * Passar a nota para um monitor de escala diferente fazia o Java reinterpretar o tamanho
+     * (280x260 chegava como 350x325 num monitor a 125%), e isso era gravado -- a nota crescia
+     * 25% a cada travessia, para sempre. Agora so a alca muda o tamanho gravado.
+     */
+    private static void somenteAAlcaRedimensiona() throws Exception {
+        Check.grupo("Somente a alca redimensiona");
+        Path base = Files.createTempDirectory("recados-resize");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.text("tamanho escolhido");
+        nota.size(280, 260);
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+        Check.that("abriu no tamanho da nota",
+                frame.getWidth() == 280 && frame.getHeight() == 260);
+
+        // e isto que o Windows faz ao trocar de monitor: mexe no tamanho por fora
+        SwingUtilities.invokeAndWait(() -> frame.setSize(350, 325));
+        SwingUtilities.invokeAndWait(() -> { });
+        Thread.sleep(200);
+        SwingUtilities.invokeAndWait(() -> { });
+
+        Check.that("a nota nao gravou o tamanho novo",
+                nota.width() == 280 && nota.height() == 260);
+        Check.that("a janela voltou ao tamanho da nota",
+                frame.getWidth() == 280 && frame.getHeight() == 260);
+        Check.that("nada disso vazou para o disco",
+                new NoteStore(base).loadAll().get(0).width() == 280);
+
+        SwingUtilities.invokeAndWait(frame::dispose);
     }
 
     private static void minimizarPreservaANota() throws Exception {

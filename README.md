@@ -162,6 +162,21 @@ maven-surefire como `PDM:Trojan.Win32.Generic`, então `mvn test` nunca chega a 
 checagens são classes Java comuns, compiladas contra o jar e executadas direto — sem
 dependência de teste no `pom.xml` e sem depender de um processo que o antivírus mata.
 
+## Dois monitores com escalas diferentes
+
+Os lançadores passam `-Dsun.java2d.uiScale=1`, que mantém **uma escala só** em todos os
+monitores. Sem isso, arrastar a nota entre um monitor a 100% e outro a 125% dava dois
+problemas: o Java reinterpretava o tamanho na escala nova — `280x260` chegava como `350x325` —
+e as coordenadas eram remapeadas na faixa da borda, então a nota saltava de volta e parecia não
+atravessar.
+
+O tamanho está resolvido no código: **só a alça** muda o tamanho gravado, e qualquer mudança
+vinda de fora é desfeita. O salto de coordenadas é do Java, e a escala única é o que o elimina.
+
+O custo: num monitor a 125% ou mais, a nota fica no tamanho de 100%, ou seja, um pouco menor.
+Se você preferir a escala do sistema à travessia suave, tire o `-Dsun.java2d.uiScale=1` de
+[recados.bat](recados.bat), [recados.sh](recados.sh) e [package-app.ps1](package-app.ps1).
+
 ## Onde as notas ficam
 
 `~/.recados/notes/<uuid>.properties` — um arquivo por nota, texto e geometria juntos. Escrever

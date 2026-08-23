@@ -5,4 +5,4 @@ if [ ! -f "$dir/target/recados.jar" ]; then
   echo "Jar nao encontrado. Rode: mvn package" >&2
   exit 1
 fi
-exec java -jar "$dir/target/recados.jar"
+exec java -Dsun.java2d.uiScale=1 -jar "$dir/target/recados.jar"

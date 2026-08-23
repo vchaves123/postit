@@ -116,6 +116,12 @@ public final class NoteFrame extends JFrame {
     private final GlyphButton pinButton;
     private final Timer saveTimer;
 
+    /**
+     * Verdadeiro so enquanto a alca esta sendo arrastada. E a unica forma legitima de mudar
+     * o tamanho da nota, entao qualquer outra mudanca e desfeita.
+     */
+    private boolean userResizing;
+
     /** Nota apagada: nada mais deve ser gravado a partir desta janela. */
     private boolean discarded;
 
@@ -676,8 +682,17 @@ public final class NoteFrame extends JFrame {
 
             @Override
             public void componentResized(ComponentEvent e) {
-                note.size(getWidth(), getHeight());
-                scheduleSave();
+                if (userResizing) {
+                    note.size(getWidth(), getHeight());
+                    scheduleSave();
+                    return;
+                }
+                // Ninguem puxou a alca, entao esta mudanca nao foi pedida. Acontece ao passar
+                // para um monitor de escala diferente: o Java reinterpreta 280x260 como
+                // 350x325 num monitor a 125%, e gravar isso inflava a nota 25% por travessia.
+                if (getWidth() != note.width() || getHeight() != note.height()) {
+                    setSize(note.width(), note.height());
+                }
             }
         });
         addWindowListener(new WindowAdapter() {
@@ -856,32 +871,39 @@ public final class NoteFrame extends JFrame {
 
     // ------------------------------------------------- arrastar e redimensionar
 
-    /** Arrasta a janela pela barra de titulo. */
+    /**
+     * Arrasta a janela pela barra de titulo.
+     *
+     * <p>A posicao e recalculada do ponteiro a cada evento, e nao somando deslocamentos sobre
+     * a posicao inicial. Com dois monitores em escalas diferentes, as coordenadas mudam de
+     * significado ao atravessar a borda, e o acumulo saia do controle -- a nota fugia do
+     * cursor e voltava para o monitor de origem. Assim, no pior caso ha um tranco de um
+     * quadro, e a janela continua colada no ponteiro.
+     */
     private final class DragSupport extends MouseAdapter {
-        private Point grabScreenPoint;
-        private Point windowOrigin;
+        private Point grabOffset;
 
         @Override
         public void mousePressed(MouseEvent e) {
             if (SwingUtilities.isLeftMouseButton(e)) {
-                grabScreenPoint = e.getLocationOnScreen();
-                windowOrigin = getLocation();
+                Point pointer = e.getLocationOnScreen();
+                Point origin = getLocation();
+                grabOffset = new Point(pointer.x - origin.x, pointer.y - origin.y);
             }
         }
 
         @Override
         public void mouseReleased(MouseEvent e) {
-            grabScreenPoint = null;
+            grabOffset = null;
         }
 
         @Override
         public void mouseDragged(MouseEvent e) {
-            if (grabScreenPoint == null) {
+            if (grabOffset == null) {
                 return;
             }
-            Point now = e.getLocationOnScreen();
-            setLocation(windowOrigin.x + (now.x - grabScreenPoint.x),
-                    windowOrigin.y + (now.y - grabScreenPoint.y));
+            Point pointer = e.getLocationOnScreen();
+            setLocation(pointer.x - grabOffset.x, pointer.y - grabOffset.y);
         }
     }
 
@@ -899,11 +921,14 @@ public final class NoteFrame extends JFrame {
                 public void mousePressed(MouseEvent e) {
                     grabScreenPoint = e.getLocationOnScreen();
                     originalSize = NoteFrame.this.getSize();
+                    userResizing = true;
                 }
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
                     grabScreenPoint = null;
+                    userResizing = false;
+                    flush(); // grava o tamanho final da alca
                 }
 
                 @Override

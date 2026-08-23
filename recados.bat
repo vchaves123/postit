@@ -6,4 +6,5 @@ if not exist "%DIR%target\recados.jar" (
   pause
   exit /b 1
 )
-start "" javaw -jar "%DIR%target\recados.jar"
+REM uiScale=1 mantem uma escala so em todos os monitores. Ver "Dois monitores" no README.
+start "" javaw -Dsun.java2d.uiScale=1 -jar "%DIR%target\recados.jar"
