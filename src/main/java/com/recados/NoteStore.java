@@ -104,7 +104,7 @@ public final class NoteStore {
         note.location(parseInt(props.getProperty("x"), 0), parseInt(props.getProperty("y"), 0));
         note.size(parseInt(props.getProperty("width"), Note.DEFAULT_WIDTH),
                 parseInt(props.getProperty("height"), Note.DEFAULT_HEIGHT));
-        note.colorIndex(parseInt(props.getProperty("colorIndex"), 0));
+        note.colorIndex(readColor(props));
         note.alwaysOnTop(Boolean.parseBoolean(props.getProperty("alwaysOnTop", "true")));
         note.visible(Boolean.parseBoolean(props.getProperty("visible", "true")));
         return note;
@@ -120,7 +120,8 @@ public final class NoteStore {
         props.setProperty("y", Integer.toString(note.y()));
         props.setProperty("width", Integer.toString(note.width()));
         props.setProperty("height", Integer.toString(note.height()));
-        props.setProperty("colorIndex", Integer.toString(note.colorIndex()));
+        // pelo nome, e nao pela posicao: reordenar a paleta nao pode repintar nota gravada
+        props.setProperty("color", note.palette().name());
         props.setProperty("alwaysOnTop", Boolean.toString(note.alwaysOnTop()));
         props.setProperty("visible", Boolean.toString(note.visible()));
 
@@ -175,6 +176,28 @@ public final class NoteStore {
         } catch (IOException e) {
             return false;
         }
+    }
+
+    /**
+     * A ordem da paleta na epoca em que a cor era gravada como indice, para nota antiga
+     * continuar com a cor que tinha. Nao mexa: e a chave de leitura desses arquivos.
+     */
+    private static final String[] LEGACY_COLOR_ORDER =
+            {"Amarelo", "Rosa", "Verde", "Azul", "Laranja", "Lilas"};
+
+    /** Prefere o nome; cai no indice antigo quando o arquivo e de antes dessa mudanca. */
+    private static int readColor(Properties props) {
+        String name = props.getProperty("color");
+        if (name != null && !name.isBlank()) {
+            int index = Palette.indexOf(name.strip());
+            return index >= 0 ? index : 0;
+        }
+        int legacy = parseInt(props.getProperty("colorIndex"), -1);
+        if (legacy >= 0 && legacy < LEGACY_COLOR_ORDER.length) {
+            int index = Palette.indexOf(LEGACY_COLOR_ORDER[legacy]);
+            return index >= 0 ? index : 0;
+        }
+        return 0;
     }
 
     private static int parseInt(String value, int fallback) {

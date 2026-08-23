@@ -1,4 +1,4 @@
-# Recados
+| Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores; a padrão é azul) |# Recados
 
 Notas adesivas na área de trabalho, em **Java 21 + Swing**. Cada nota é uma janelinha colorida sem
 decoração do sistema, que se lembra de onde estava, do tamanho, da cor e se fica no topo.
@@ -38,6 +38,15 @@ Clique com o botão direito em qualquer parte da nota para o menu de contexto.
 
 O texto salva sozinho meio segundo depois da última tecla, e também ao mover, redimensionar
 ou perder o foco — não existe botão de salvar.
+
+## Por que azul, e não amarelo
+
+A cor padrão da nota e o ícone do aplicativo são **azuis** de propósito. A 3M tem registro da
+cor "canary yellow" aplicada sobre a superfície inteira de notas adesivas, e há relato de
+acionamento contra versão *digital* de nota adesiva na mesma cor. O amarelo continua na paleta
+como uma das seis opções — o que ele não é mais é a identidade visual do app.
+
+Não é orientação jurídica; é distância barata de tomar.
 
 ## Ícone próprio na barra de tarefas
 
@@ -159,6 +168,10 @@ dependência de teste no `pom.xml` e sem depender de um processo que o antivíru
 uma nota nunca mexe nas outras, e a gravação é atômica (arquivo temporário + `move`), então
 uma falha no meio não deixa nota truncada. Um `.lock` no diretório impede duas instâncias
 brigando pelos mesmos arquivos.
+
+A cor vai gravada pelo **nome** (`color=Azul`), nunca pela posição na paleta: reordenar as
+cores não pode repintar nota já gravada. Arquivo da versão que gravava `colorIndex=` continua
+sendo lido pela ordem antiga daquela época, que está fixa em `NoteStore`.
 
 ### Minimizar não é apagar
 

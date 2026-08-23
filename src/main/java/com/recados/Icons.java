@@ -98,7 +98,7 @@ public final class Icons {
         return icons;
     }
 
-    /** Uma notinha adesiva com a ponta dobrada, para a bandeja do sistema. */
+    /** Uma notinha com a ponta dobrada, na cor padrao da paleta. */
     public static BufferedImage trayIcon(int size) {
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
@@ -108,12 +108,12 @@ public final class Icons {
         int side = size - 2 * pad;
         int fold = Math.max(3, side / 3);
 
-        Palette yellow = Palette.at(0);
-        g.setColor(yellow.body());
+        Palette base = Palette.at(0); // a cor padrao da paleta e a identidade do app
+        g.setColor(base.body());
         g.fillRect(pad, pad, side, side);
 
         // ponta dobrada no canto inferior direito
-        g.setColor(yellow.header().darker());
+        g.setColor(base.header().darker());
         int[] xs = {pad + side - fold, pad + side, pad + side};
         int[] ys = {pad + side, pad + side - fold, pad + side};
         g.fillPolygon(xs, ys, 3);

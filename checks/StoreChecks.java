@@ -1,5 +1,6 @@
 import com.recados.Note;
 import com.recados.NoteStore;
+import com.recados.Palette;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -10,6 +11,53 @@ public final class StoreChecks {
     public static void run() throws Exception {
         lixeira();
         migracao();
+        cores();
+    }
+
+    /**
+     * A cor e gravada pelo nome. Se voltar a ser posicao, reordenar a paleta repinta nota
+     * gravada -- foi por isso que esta checagem existe.
+     */
+    private static void cores() throws Exception {
+        Check.grupo("Cores");
+        Path base = Files.createTempDirectory("recados-cores");
+        NoteStore store = new NoteStore(base);
+
+        Check.that("a cor padrao e azul", Palette.at(0).name().equals("Azul"));
+        Check.that("amarelo continua disponivel", Palette.indexOf("Amarelo") >= 0);
+
+        Note nota = Note.create();
+        Check.that("nota nova nasce azul", nota.palette().name().equals("Azul"));
+
+        nota.colorIndex(Palette.indexOf("Verde"));
+        store.save(nota);
+        Check.that("cor gravada pelo nome",
+                Files.readString(base.resolve("notes").resolve(nota.id() + ".properties"))
+                        .contains("color=Verde"));
+        Check.that("cor volta igual do disco",
+                store.loadAll().get(0).palette().name().equals("Verde"));
+
+        // arquivo da versao em que a cor era indice: 0 era Amarelo, 3 era Azul
+        gravarLegado(base, "legado-amarelo", "colorIndex=0");
+        gravarLegado(base, "legado-azul", "colorIndex=3");
+        List<Note> antigas = store.loadAll();
+        Check.that("indice antigo 0 continua Amarelo", antigas.stream()
+                .anyMatch(n -> n.id().equals("legado-amarelo")
+                        && n.palette().name().equals("Amarelo")));
+        Check.that("indice antigo 3 continua Azul", antigas.stream()
+                .anyMatch(n -> n.id().equals("legado-azul")
+                        && n.palette().name().equals("Azul")));
+
+        // cor que nao existe mais nao pode quebrar a leitura
+        gravarLegado(base, "cor-inexistente", "color=Turquesa");
+        Check.that("cor desconhecida cai no padrao", store.loadAll().stream()
+                .anyMatch(n -> n.id().equals("cor-inexistente")
+                        && n.palette().name().equals("Azul")));
+    }
+
+    private static void gravarLegado(Path base, String id, String linhaDeCor) throws Exception {
+        Files.writeString(base.resolve("notes").resolve(id + ".properties"),
+                "createdAt=1700000000000\ntext=nota antiga\n" + linhaDeCor + "\n");
     }
 
     private static void lixeira() throws Exception {

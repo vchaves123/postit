@@ -105,8 +105,8 @@ public final class NoteFrame extends JFrame {
      */
     private static final Charset RTF_CHARSET = StandardCharsets.ISO_8859_1;
 
-    /** Azul de link, escuro o bastante para ler sobre qualquer cor de nota. */
-    private static final Color LINK_COLOR = new Color(0x1A4E8A);
+    /** Azul de link. Mais forte que o texto de qualquer paleta, inclusive a azul. */
+    private static final Color LINK_COLOR = new Color(0x0B57D0);
 
     private final Note note;
     private final Host host;
