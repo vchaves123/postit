@@ -47,7 +47,7 @@ public final class NoteFrame extends JFrame {
     public interface Host {
         void newNote(NoteFrame origin);
 
-        /** Fecha a janela sem apagar a nota. */
+        /** Minimiza: tira a janela da tela sem apagar a nota. */
         void closeNote(NoteFrame frame);
 
         void deleteNote(NoteFrame frame);
@@ -130,9 +130,8 @@ public final class NoteFrame extends JFrame {
         buttons.add(new GlyphButton(Glyph.PLUS, "Nova nota (Ctrl+N)", () -> host.newNote(this)));
         buttons.add(new GlyphButton(Glyph.COLOR, "Trocar a cor (Ctrl+E)", this::cycleColor));
         buttons.add(pinButton);
-        // O "x" fecha, nao apaga: numa janela sem decoracao ele e o gesto universal de
-        // fechar, e quem clica nele nao esta pedindo para perder o texto.
-        buttons.add(new GlyphButton(Glyph.CLOSE, "Fechar esta nota (Ctrl+W) -- nao apaga",
+        buttons.add(new GlyphButton(Glyph.MINIMIZE,
+                "Minimizar esta nota (Ctrl+W) -- nao apaga, volta pela bandeja",
                 () -> host.closeNote(this)));
         header.add(buttons, BorderLayout.EAST);
 
@@ -189,7 +188,7 @@ public final class NoteFrame extends JFrame {
     }
 
     /** Os desenhos dos botoes da barra de titulo. */
-    private enum Glyph { PLUS, COLOR, PIN_ON, PIN_OFF, CLOSE }
+    private enum Glyph { PLUS, COLOR, PIN_ON, PIN_OFF, MINIMIZE }
 
     /**
      * Botao da barra de titulo. O icone e desenhado, nao escrito: com fonte, glifos como
@@ -265,10 +264,9 @@ public final class NoteFrame extends JFrame {
                 }
                 case PIN_ON -> g2.fillOval(x + 1, y + 1, box - 2, box - 2);
                 case PIN_OFF -> g2.drawOval(x + 1, y + 1, box - 2, box - 2);
-                case CLOSE -> {
-                    g2.drawLine(x, y, x + box, y + box);
-                    g2.drawLine(x + box, y, x, y + box);
-                }
+                // barra embaixo, como o minimizar do Windows: a nota sai da tela e
+                // continua existindo. Um "x" prometia fechar e cumpria apagar.
+                case MINIMIZE -> g2.drawLine(x, y + box, x + box, y + box);
             }
             g2.dispose();
         }
@@ -321,8 +319,10 @@ public final class NoteFrame extends JFrame {
 
             @Override
             public void windowClosing(WindowEvent e) {
-                // Alt+F4 e fechar, igual ao "x": nunca apaga
-                host.closeNote(NoteFrame.this);
+                // Só grava. Nao minimiza: WM_CLOSE tambem chega quando alguem encerra o
+                // processo ou o Windows desliga, e minimizar aqui gravava visible=false em
+                // todas as notas -- o proximo inicio abria sem janela nenhuma.
+                flush();
             }
         });
     }
@@ -394,7 +394,7 @@ public final class NoteFrame extends JFrame {
         menu.add(item("Trocar a cor", this::cycleColor));
         menu.add(item(note.alwaysOnTop() ? "Soltar do topo" : "Fixar no topo", this::togglePin));
         menu.addSeparator();
-        menu.add(item("Fechar esta nota", () -> host.closeNote(this)));
+        menu.add(item("Minimizar esta nota", () -> host.closeNote(this)));
         menu.add(item("Mostrar todas as notas", host::showAll));
         menu.add(item("Configuracoes...", () -> host.openSettings(this)));
         menu.addSeparator();
@@ -449,7 +449,7 @@ public final class NoteFrame extends JFrame {
     public boolean confirmDelete() {
         int answer = JOptionPane.showConfirmDialog(this,
                 "Apagar esta nota? Ela vai para a lixeira do Recados.\n\n"
-                        + "Para so tirar da tela, feche com o x ou Ctrl+W.",
+                        + "Para so tirar da tela, minimize com o botao da barra ou Ctrl+W.",
                 "Recados", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         return answer == JOptionPane.YES_OPTION;
     }

@@ -36,7 +36,7 @@ public final class RecadosApp implements NoteFrame.Host {
 
     private final NoteStore store;
 
-    /** Todas as notas conhecidas, abertas ou fechadas -- e o que a bandeja lista. */
+    /** Todas as notas conhecidas, na tela ou minimizadas -- e o que a bandeja lista. */
     private final Map<String, Note> notes = new LinkedHashMap<>();
 
     /** Somente as que estao com janela na tela. */
@@ -79,7 +79,7 @@ public final class RecadosApp implements NoteFrame.Host {
                 openFrame(note);
             }
         }
-        // sem bandeja nao ha como abrir uma nota fechada: mostra pelo menos uma
+        // sem bandeja nao ha como reabrir uma nota minimizada: mostra pelo menos uma
         if (frames.isEmpty() && trayIcon == null) {
             openFrame(notes.values().iterator().next());
         }
@@ -94,12 +94,12 @@ public final class RecadosApp implements NoteFrame.Host {
                 Ctrl+N  nova nota
                 Ctrl+E  trocar a cor
                 Ctrl+T  fixar/soltar no topo
-                Ctrl+W  fechar (nao apaga)
+                Ctrl+W  minimizar (nao apaga)
                 Ctrl+D  apagar, com confirmacao
                 Ctrl+Q  sair
 
-                O x fecha a nota; ela volta
-                pelo icone na bandeja.
+                O botao - minimiza a nota;
+                ela volta pela bandeja.
 
                 Arraste pela barra de cima,
                 redimensione pelo canto de baixo.
@@ -176,7 +176,7 @@ public final class RecadosApp implements NoteFrame.Host {
     public void closeNote(NoteFrame frame) {
         Note note = frame.note();
         if (trayIcon == null && frames.size() == 1) {
-            // sem bandeja, fechar a ultima nota deixaria o app sem porta de volta
+            // sem bandeja, minimizar a ultima nota deixaria o app sem porta de volta
             JOptionPane.showMessageDialog(frame,
                     "Esta e a ultima nota aberta e o icone da bandeja nao esta disponivel,\n"
                             + "entao nao haveria como reabri-la.\n\n"
@@ -224,7 +224,7 @@ public final class RecadosApp implements NoteFrame.Host {
         new SettingsDialog(origin, store).setVisible(true);
     }
 
-    /** Traz todas de volta para a tela, inclusive as que estavam fechadas. */
+    /** Traz todas de volta para a tela, inclusive as minimizadas. */
     @Override
     public void showAll() {
         for (Note note : new ArrayList<>(notes.values())) {
@@ -268,11 +268,11 @@ public final class RecadosApp implements NoteFrame.Host {
         PopupMenu menu = new PopupMenu();
         menu.add(menuItem("Nova nota", () -> newNote(null)));
         menu.add(menuItem("Mostrar todas", this::showAll));
-        // lista todas, nao so as abertas: e por aqui que uma nota fechada volta
+        // lista todas, nao so as na tela: e por aqui que uma nota minimizada volta
         if (!notes.isEmpty()) {
             menu.addSeparator();
             for (Note note : notes.values()) {
-                String label = note.visible() ? note.title() : note.title() + "  (fechada)";
+                String label = note.visible() ? note.title() : note.title() + "  (minimizada)";
                 menu.add(menuItem(label, () -> openFrame(note).focusText()));
             }
         }
