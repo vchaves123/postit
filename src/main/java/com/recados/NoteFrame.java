@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -76,7 +76,7 @@ public final class NoteFrame extends JFrame {
     private boolean discarded;
 
     public NoteFrame(Note note, Host host) {
-        super("postit");
+        super("Recados");
         this.note = note;
         this.host = host;
         this.saveTimer = new Timer(SAVE_DELAY_MS, e -> flush());
@@ -282,7 +282,7 @@ public final class NoteFrame extends JFrame {
     }
 
     private void bind(String keyStroke, Runnable action) {
-        String name = "postit:" + keyStroke;
+        String name = "recados:" + keyStroke;
         getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
                 .put(KeyStroke.getKeyStroke(keyStroke), name);
         getRootPane().getActionMap().put(name, new AbstractAction() {
@@ -391,7 +391,7 @@ public final class NoteFrame extends JFrame {
         menu.add(item("Configuracoes...", () -> host.openSettings(this)));
         menu.addSeparator();
         menu.add(item("Apagar esta nota", () -> host.deleteNote(this)));
-        menu.add(item("Sair do postit", host::quit));
+        menu.add(item("Sair do Recados", host::quit));
         return menu;
     }
 
@@ -439,8 +439,8 @@ public final class NoteFrame extends JFrame {
             return true;
         }
         int answer = JOptionPane.showConfirmDialog(this,
-                "Apagar esta nota? Ela vai para a lixeira do postit.",
-                "postit", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                "Apagar esta nota? Ela vai para a lixeira do Recados.",
+                "Recados", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         return answer == JOptionPane.YES_OPTION;
     }
 

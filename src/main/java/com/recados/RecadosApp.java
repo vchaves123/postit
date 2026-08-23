@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.awt.AWTException;
 import java.awt.MenuItem;
@@ -26,10 +26,10 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
 /**
- * Post-it para a area de trabalho: cada nota e uma janelinha colorida que se lembra
+ * Recados na area de trabalho: cada nota e uma janelinha colorida que se lembra
  * de onde estava, do tamanho e da cor. Ponto de entrada do aplicativo.
  */
-public final class PostItApp implements NoteFrame.Host {
+public final class RecadosApp implements NoteFrame.Host {
 
     private static final int CASCADE_STEP = 28;
     private static final int MARGIN = 60;
@@ -42,23 +42,24 @@ public final class PostItApp implements NoteFrame.Host {
     /** Mantido em campo para o lock de instancia unica viver enquanto o processo viver. */
     private static FileChannel lockChannel;
 
-    public PostItApp(NoteStore store) {
+    public RecadosApp(NoteStore store) {
         this.store = store;
     }
 
     public static void main(String[] args) {
         NoteStore store = new NoteStore();
         if (!acquireSingleInstanceLock(store.baseDir())) {
-            System.out.println("postit ja esta em execucao.");
+            System.out.println("Recados ja esta em execucao.");
             return;
         }
         SwingUtilities.invokeLater(() -> {
             applyLookAndFeel();
-            new PostItApp(store).start();
+            new RecadosApp(store).start();
         });
     }
 
     private void start() {
+        Autostart.removeLegacyLink();
         List<Note> notes = store.loadAll();
         if (notes.isEmpty()) {
             notes = List.of(welcomeNote());
@@ -72,7 +73,7 @@ public final class PostItApp implements NoteFrame.Host {
     private Note welcomeNote() {
         Note note = Note.create();
         note.text("""
-                Bem-vindo ao postit!
+                Bem-vindo ao Recados!
 
                 Ctrl+N  nova nota
                 Ctrl+E  trocar a cor
@@ -156,7 +157,7 @@ public final class PostItApp implements NoteFrame.Host {
             JOptionPane.showMessageDialog(frame,
                     "Nao foi possivel mover a nota para a lixeira em\n" + store.trashDir()
                             + "\n\nA nota continua salva.",
-                    "postit", JOptionPane.ERROR_MESSAGE);
+                    "Recados", JOptionPane.ERROR_MESSAGE);
             return;
         }
         frames.remove(frame.note().id());
@@ -204,7 +205,7 @@ public final class PostItApp implements NoteFrame.Host {
         if (!SystemTray.isSupported()) {
             return;
         }
-        trayIcon = new TrayIcon(Icons.trayIcon(16), "postit");
+        trayIcon = new TrayIcon(Icons.trayIcon(16), "Recados");
         trayIcon.setImageAutoSize(true);
         trayIcon.addActionListener(e -> showAll());
         try {
@@ -249,9 +250,9 @@ public final class PostItApp implements NoteFrame.Host {
 
     private void showAbout() {
         JOptionPane.showMessageDialog(null,
-                "postit 1.0.0\nNotas na area de trabalho, em Java 21 + Swing.\n\nNotas salvas em:\n"
+                "Recados 1.0.0\nNotas na area de trabalho, em Java 21 + Swing.\n\nNotas salvas em:\n"
                         + store.baseDir(),
-                "Sobre o postit", JOptionPane.INFORMATION_MESSAGE);
+                "Sobre o Recados", JOptionPane.INFORMATION_MESSAGE);
     }
 
     // ------------------------------------------------------------------ infra

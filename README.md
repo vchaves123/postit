@@ -1,6 +1,6 @@
-# postit
+# Recados
 
-Post-it na área de trabalho, em **Java 21 + Swing**. Cada nota é uma janelinha colorida sem
+Notas adesivas na área de trabalho, em **Java 21 + Swing**. Cada nota é uma janelinha colorida sem
 decoração do sistema, que se lembra de onde estava, do tamanho, da cor e se fica no topo.
 Sem dependências externas.
 
@@ -10,13 +10,13 @@ Sem dependências externas.
 mvn package
 ```
 
-Depois, no Windows, dê um duplo clique em `postit.bat` (ou rode direto):
+Depois, no Windows, dê um duplo clique em `recados.bat` (ou rode direto):
 
 ```bash
-java -jar target/postit.jar
+java -jar target/recados.jar
 ```
 
-No Linux/macOS, use `./postit.sh`.
+No Linux/macOS, use `./recados.sh`.
 
 ## Como usar
 
@@ -40,15 +40,15 @@ ou perder o foco — não existe botão de salvar.
 ## Iniciar com o Windows
 
 Abra **Configurações** (menu da bandeja, botão direito na nota, ou `Ctrl+,`) e marque
-**"Iniciar o postit com o Windows"**. Não precisa rodar nada por fora — a caixa reflete o
+**"Iniciar o Recados com o Windows"**. Não precisa rodar nada por fora — a caixa reflete o
 estado real do sistema, e desmarcar desfaz.
 
-Por baixo é um atalho `postit.lnk` na pasta Inicializar do usuário, apontando para `javaw.exe`
-com o jar (sem janela de console). Se você mover a pasta do postit, desmarque e marque de novo
+Por baixo é um atalho `recados.lnk` na pasta Inicializar do usuário, apontando para `javaw.exe`
+com o jar (sem janela de console). Se você mover a pasta do Recados, desmarque e marque de novo
 para reapontar.
 
 Para instalação automatizada (sem abrir a interface) os mesmos arquivos podem ser criados por
-script — é o mesmo `postit.lnk`, então os dois caminhos nunca conflitam:
+script — é o mesmo `recados.lnk`, então os dois caminhos nunca conflitam:
 
 ```bash
 powershell -ExecutionPolicy Bypass -File install-startup.ps1
@@ -68,14 +68,14 @@ inicialização" nas configurações do Windows e é I/O puro para consultar e r
 
 ## Onde as notas ficam
 
-`~/.postit/notes/<uuid>.properties` — um arquivo por nota, texto e geometria juntos. Escrever
+`~/.recados/notes/<uuid>.properties` — um arquivo por nota, texto e geometria juntos. Escrever
 uma nota nunca mexe nas outras, e a gravação é atômica (arquivo temporário + `move`), então
 uma falha no meio não deixa nota truncada. Um `.lock` no diretório impede duas instâncias
 brigando pelos mesmos arquivos.
 
 ### Lixeira
 
-Apagar **não** remove o arquivo: ele vai para `~/.postit/trash/<uuid>-<timestamp>.properties`.
+Apagar **não** remove o arquivo: ele vai para `~/.recados/trash/<uuid>-<timestamp>.properties`.
 A pasta nasce no primeiro apagar, e o carimbo de tempo garante que restaurar uma nota e apagar
 de novo não sobrescreve a cópia anterior.
 
@@ -88,12 +88,12 @@ Nada esvazia a lixeira automaticamente; apagar de vez é decisão sua, no explor
 
 | Arquivo | Papel |
 | --- | --- |
-| [PostItApp.java](src/main/java/com/postit/PostItApp.java) | ponto de entrada, ciclo de vida das janelas, bandeja do sistema |
-| [NoteFrame.java](src/main/java/com/postit/NoteFrame.java) | a janela da nota: arrastar, redimensionar, atalhos, autosave |
-| [Note.java](src/main/java/com/postit/Note.java) | o modelo: texto, geometria, cor, fixação |
-| [NoteStore.java](src/main/java/com/postit/NoteStore.java) | leitura e gravação em `~/.postit` |
-| [SettingsDialog.java](src/main/java/com/postit/SettingsDialog.java) | a janela de Configurações |
-| [Autostart.java](src/main/java/com/postit/Autostart.java) | liga e desliga o início automático com o Windows |
-| [Palette.java](src/main/java/com/postit/Palette.java) | as 6 cores |
-| [Icons.java](src/main/java/com/postit/Icons.java) | ícone da bandeja, desenhado em runtime |
+| [RecadosApp.java](src/main/java/com/recados/RecadosApp.java) | ponto de entrada, ciclo de vida das janelas, bandeja do sistema |
+| [NoteFrame.java](src/main/java/com/recados/NoteFrame.java) | a janela da nota: arrastar, redimensionar, atalhos, autosave |
+| [Note.java](src/main/java/com/recados/Note.java) | o modelo: texto, geometria, cor, fixação |
+| [NoteStore.java](src/main/java/com/recados/NoteStore.java) | leitura e gravação em `~/.recados` |
+| [SettingsDialog.java](src/main/java/com/recados/SettingsDialog.java) | a janela de Configurações |
+| [Autostart.java](src/main/java/com/recados/Autostart.java) | liga e desliga o início automático com o Windows |
+| [Palette.java](src/main/java/com/recados/Palette.java) | as 6 cores |
+| [Icons.java](src/main/java/com/recados/Icons.java) | ícone da bandeja, desenhado em runtime |
 | [install-startup.ps1](install-startup.ps1) · [uninstall-startup.ps1](uninstall-startup.ps1) | o mesmo atalho, para instalação por script |

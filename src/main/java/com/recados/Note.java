@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.util.UUID;
 

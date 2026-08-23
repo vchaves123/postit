@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -32,12 +32,12 @@ public final class SettingsDialog extends JDialog {
     private static final int TEXT_WIDTH = 340;
 
     private final NoteStore store;
-    private final JCheckBox autostartBox = new JCheckBox("Iniciar o postit com o Windows");
+    private final JCheckBox autostartBox = new JCheckBox("Iniciar o Recados com o Windows");
     private final JLabel autostartHint = new JLabel();
     private final JButton closeButton = new JButton("Fechar");
 
     public SettingsDialog(Window owner, NoteStore store) {
-        super(owner, "Configuracoes do postit", ModalityType.APPLICATION_MODAL);
+        super(owner, "Configuracoes do Recados", ModalityType.APPLICATION_MODAL);
         this.store = store;
 
         JPanel content = new JPanel();
@@ -140,7 +140,7 @@ public final class SettingsDialog extends JDialog {
                     JOptionPane.showMessageDialog(SettingsDialog.this,
                             "Nao foi possivel " + (enabled ? "ligar" : "desligar")
                                     + " o inicio automatico.\n\n" + cause.getMessage(),
-                            "postit", JOptionPane.ERROR_MESSAGE);
+                            "Recados", JOptionPane.ERROR_MESSAGE);
                 }
                 refreshAutostart(); // reflete o estado real, mesmo depois de falhar
             }
@@ -161,7 +161,7 @@ public final class SettingsDialog extends JDialog {
     private void openFolder(Path folder) {
         if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
             JOptionPane.showMessageDialog(this, folder.toString(),
-                    "postit", JOptionPane.INFORMATION_MESSAGE);
+                    "Recados", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         try {
@@ -169,7 +169,7 @@ public final class SettingsDialog extends JDialog {
         } catch (IOException | IllegalArgumentException e) {
             JOptionPane.showMessageDialog(this,
                     "Nao foi possivel abrir a pasta:\n" + folder + "\n\n" + e.getMessage(),
-                    "postit", JOptionPane.ERROR_MESSAGE);
+                    "Recados", JOptionPane.ERROR_MESSAGE);
         }
     }
 

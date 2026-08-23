@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -13,7 +13,7 @@ import java.util.Properties;
 import java.util.stream.Stream;
 
 /**
- * Persistencia das notas em {@code ~/.postit/notes/<id>.properties}.
+ * Persistencia das notas em {@code ~/.recados/notes/<id>.properties}.
  * Um arquivo por nota: escrever uma nunca corrompe as outras. Sem dependencias externas --
  * {@link Properties} ja escapa quebras de linha, entao texto multilinha sobrevive ao round-trip.
  */
@@ -25,7 +25,29 @@ public final class NoteStore {
     private final Path trashDir;
 
     public NoteStore() {
-        this(Path.of(System.getProperty("user.home"), ".postit"));
+        this(defaultBaseDir());
+    }
+
+    /**
+     * {@code ~/.recados}, migrando de {@code ~/.postit} na primeira execucao depois da
+     * troca de nome do projeto. Se a migracao falhar, continua usando a pasta antiga:
+     * comecar de uma pasta vazia pareceria que as notas sumiram.
+     */
+    private static Path defaultBaseDir() {
+        Path home = Path.of(System.getProperty("user.home"));
+        Path base = home.resolve(".recados");
+        Path legacy = home.resolve(".postit");
+        if (!Files.exists(base) && Files.isDirectory(legacy)) {
+            try {
+                Files.move(legacy, base);
+                System.out.println("Notas migradas de " + legacy + " para " + base);
+            } catch (IOException e) {
+                System.err.println("Nao foi possivel migrar " + legacy + " para " + base
+                        + " (" + e.getMessage() + "); seguindo com a pasta antiga.");
+                return legacy;
+            }
+        }
+        return base;
     }
 
     public NoteStore(Path baseDir) {
@@ -101,7 +123,7 @@ public final class NoteStore {
         Path temp = dir.resolve(note.id() + EXTENSION + ".tmp");
         try {
             try (var writer = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
-                props.store(writer, "postit note");
+                props.store(writer, "Recados note");
             }
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {

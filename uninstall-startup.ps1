@@ -1,8 +1,12 @@
-# Remove o atalho do postit da pasta Inicializar do Windows.
+# Remove o atalho do Recados da pasta Inicializar do Windows.
 
 $ErrorActionPreference = 'Stop'
 
-$link = Join-Path ([Environment]::GetFolderPath('Startup')) 'postit.lnk'
+$startup = [Environment]::GetFolderPath('Startup')
+$link = Join-Path $startup 'recados.lnk'
+
+# atalho do nome antigo, de quando o projeto se chamava postit
+Remove-Item (Join-Path $startup 'postit.lnk') -Force -ErrorAction SilentlyContinue
 
 if (Test-Path $link) {
     Remove-Item $link -Force

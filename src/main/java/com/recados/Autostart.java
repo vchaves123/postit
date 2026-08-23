@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -16,7 +16,7 @@ import java.util.Optional;
 /**
  * Liga e desliga o inicio automatico com o sistema, sem depender de script externo.
  *
- * <p>O mecanismo e um atalho {@code postit.lnk} na pasta Inicializar do usuario -- o mesmo
+ * <p>O mecanismo e um atalho {@code recados.lnk} na pasta Inicializar do usuario -- o mesmo
  * lugar que o Windows oferece em "Aplicativos de inicializacao", e o mesmo arquivo que o
  * {@code install-startup.ps1} cria, entao os dois caminhos nunca brigam.
  *
@@ -47,7 +47,7 @@ public final class Autostart {
         }
     }
 
-    private static final String LINK_NAME = "postit.lnk";
+    private static final String LINK_NAME = "recados.lnk";
 
     private Autostart() {
     }
@@ -63,9 +63,9 @@ public final class Autostart {
     public static String statusExplanation() {
         return switch (status()) {
             case AVAILABLE -> "Cria um atalho na pasta Inicializar do Windows apontando para este "
-                    + "jar. Se voce mover a pasta do postit, desmarque e marque de novo.";
-            case NOT_PACKAGED -> "Disponivel quando o postit roda pelo jar. Rode \"mvn package\" e "
-                    + "inicie por target/postit.jar.";
+                    + "jar. Se voce mover a pasta do Recados, desmarque e marque de novo.";
+            case NOT_PACKAGED -> "Disponivel quando o Recados roda pelo jar. Rode \"mvn package\" e "
+                    + "inicie por target/recados.jar.";
             case UNSUPPORTED_OS -> "Nesta versao o inicio automatico so funciona no Windows.";
         };
     }
@@ -77,6 +77,26 @@ public final class Autostart {
 
     public static Path linkPath() {
         return startupDir().resolve(LINK_NAME);
+    }
+
+    /**
+     * Remove o atalho com o nome antigo, de quando o projeto se chamava postit. Sem isso
+     * ele continuaria na Inicializar apontando para um jar que nao existe mais, e o login
+     * abriria um erro de "jar nao encontrado".
+     */
+    public static void removeLegacyLink() {
+        if (!isWindows()) {
+            return;
+        }
+        Path legacy = startupDir().resolve("postit.lnk");
+        try {
+            if (Files.deleteIfExists(legacy)) {
+                System.out.println("Atalho antigo removido: " + legacy);
+            }
+        } catch (IOException e) {
+            System.err.println("Nao foi possivel remover o atalho antigo " + legacy
+                    + ": " + e.getMessage());
+        }
     }
 
     /**
@@ -113,7 +133,7 @@ public final class Autostart {
                 + "$s.TargetPath = " + ps(launcher) + ";"
                 + "$s.Arguments = " + ps("-jar \"" + jar + "\"") + ";"
                 + "$s.WorkingDirectory = " + ps(jar.getParent()) + ";"
-                + "$s.Description = 'postit - notas na area de trabalho';"
+                + "$s.Description = 'Recados - notas na area de trabalho';"
                 + "$s.IconLocation = " + ps(launcher + ",0") + ";"
                 + "$s.Save()";
 
@@ -164,7 +184,7 @@ public final class Autostart {
 
     /** O jar de onde esta classe foi carregada, quando ela veio de um jar. */
     private static Optional<Path> jarPath() {
-        CodeSource source = PostItApp.class.getProtectionDomain().getCodeSource();
+        CodeSource source = RecadosApp.class.getProtectionDomain().getCodeSource();
         if (source == null || source.getLocation() == null) {
             return Optional.empty();
         }

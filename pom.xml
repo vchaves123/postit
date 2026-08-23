@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.postit</groupId>
-  <artifactId>postit</artifactId>
+  <groupId>com.recados</groupId>
+  <artifactId>recados</artifactId>
   <version>1.0.0</version>
   <packaging>jar</packaging>
 
-  <name>postit</name>
-  <description>Post-it notes for your desktop</description>
+  <name>recados</name>
+  <description>Notas adesivas na area de trabalho</description>
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
@@ -18,7 +18,7 @@
   </properties>
 
   <build>
-    <finalName>postit</finalName>
+    <finalName>recados</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -27,7 +27,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>com.postit.PostItApp</mainClass>
+              <mainClass>com.recados.RecadosApp</mainClass>
             </manifest>
           </archive>
         </configuration>

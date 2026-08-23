@@ -1,4 +1,4 @@
-package com.postit;
+package com.recados;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -11,7 +11,7 @@ public final class Icons {
     private Icons() {
     }
 
-    /** Um quadradinho de post-it com a ponta dobrada, para a bandeja do sistema. */
+    /** Uma notinha adesiva com a ponta dobrada, para a bandeja do sistema. */
     public static BufferedImage trayIcon(int size) {
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();

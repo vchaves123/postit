@@ -1,11 +1,11 @@
-# Cria um atalho na pasta Inicializar do Windows para o postit subir com a sessao.
+# Cria um atalho na pasta Inicializar do Windows para o Recados subir com a sessao.
 # Aponta direto para javaw.exe (sem janela de console) em vez de para o .bat.
 # Desfazer: uninstall-startup.ps1
 
 $ErrorActionPreference = 'Stop'
 
 $repo = $PSScriptRoot
-$jar = Join-Path $repo 'target\postit.jar'
+$jar = Join-Path $repo 'target\recados.jar'
 
 if (-not (Test-Path $jar)) {
     Write-Error "Jar nao encontrado em $jar. Rode 'mvn package' primeiro."
@@ -26,18 +26,21 @@ if (-not $javaw) {
 }
 
 $startup = [Environment]::GetFolderPath('Startup')
-$link = Join-Path $startup 'postit.lnk'
+$link = Join-Path $startup 'recados.lnk'
 
-$shell = New-Object -ComObject WScript.Shell
+$shell# limpa o atalho do nome antigo, para nao sobrar dois na Inicializar
+Remove-Item (Join-Path $startup 'postit.lnk') -Force -ErrorAction SilentlyContinue
+
+ = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($link)
 $shortcut.TargetPath = $javaw
 $shortcut.Arguments = '-jar "' + $jar + '"'
 $shortcut.WorkingDirectory = $repo
-$shortcut.Description = 'postit - notas na area de trabalho'
+$shortcut.Description = 'Recados - notas na area de trabalho'
 $shortcut.IconLocation = $javaw + ',0'
 $shortcut.Save()
 
 Write-Output "Atalho criado: $link"
 Write-Output "  alvo: $javaw"
 Write-Output "  args: $($shortcut.Arguments)"
-Write-Output 'O postit vai iniciar no proximo login. Para desfazer: .\uninstall-startup.ps1'
+Write-Output 'O Recados vai iniciar no proximo login. Para desfazer: .\uninstall-startup.ps1'
