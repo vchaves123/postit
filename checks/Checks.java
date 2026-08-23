@@ -9,7 +9,7 @@ public final class Checks {
     public static void main(String[] args) throws Exception {
         StoreChecks.run();
         WindowChecks.run();
-        RichTextChecks.run();
+        HtmlChecks.run();
 
         System.out.println();
         if (Check.falhas() == 0) {

@@ -15,6 +15,7 @@ public final class Note {
     private final long createdAt;
     private String text;
     private String rtf;
+    private String html;
     private int x;
     private int y;
     private int width;
@@ -28,6 +29,7 @@ public final class Note {
         this.createdAt = createdAt;
         this.text = "";
         this.rtf = "";
+        this.html = "";
         this.width = DEFAULT_WIDTH;
         this.height = DEFAULT_HEIGHT;
         this.alwaysOnTop = true;
@@ -45,9 +47,15 @@ public final class Note {
     public void text(String text) { this.text = text == null ? "" : text; }
 
     /**
-     * O mesmo conteudo em RTF, com negrito, italico e sublinhado. Vazio numa nota sem
-     * formatacao ou gravada por uma versao anterior -- nesse caso vale o {@link #text()}.
-     * Os dois sao gravados juntos: o texto puro mantem o arquivo legivel e pesquisavel.
+     * O mesmo conteudo em HTML, com formatacao, listas e links. Gravado junto com o
+     * {@link #text()}, que mantem o arquivo legivel e pesquisavel e alimenta a bandeja.
+     */
+    public String html() { return html; }
+    public void html(String html) { this.html = html == null ? "" : html; }
+
+    /**
+     * Formatacao em RTF, de notas gravadas antes da mudanca para HTML. Somente leitura na
+     * pratica: ao gravar de novo, a nota passa a usar {@link #html()}.
      */
     public String rtf() { return rtf; }
     public void rtf(String rtf) { this.rtf = rtf == null ? "" : rtf; }

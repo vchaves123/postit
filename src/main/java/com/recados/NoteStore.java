@@ -100,6 +100,7 @@ public final class NoteStore {
         Note note = new Note(id, parseLong(props.getProperty("createdAt"), System.currentTimeMillis()));
         note.text(props.getProperty("text", ""));
         note.rtf(props.getProperty("rtf", ""));
+        note.html(props.getProperty("html", ""));
         note.location(parseInt(props.getProperty("x"), 0), parseInt(props.getProperty("y"), 0));
         note.size(parseInt(props.getProperty("width"), Note.DEFAULT_WIDTH),
                 parseInt(props.getProperty("height"), Note.DEFAULT_HEIGHT));
@@ -114,7 +115,7 @@ public final class NoteStore {
         Properties props = new Properties();
         props.setProperty("createdAt", Long.toString(note.createdAt()));
         props.setProperty("text", note.text());
-        props.setProperty("rtf", note.rtf());
+        props.setProperty("html", note.html());
         props.setProperty("x", Integer.toString(note.x()));
         props.setProperty("y", Integer.toString(note.y()));
         props.setProperty("width", Integer.toString(note.width()));

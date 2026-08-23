@@ -26,7 +26,7 @@ No Linux/macOS, use `./recados.sh`.
 | Redimensionar | arraste a alça no canto inferior direito |
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
 | Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores) |
-| Negrito / itálico / sublinhado | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, ou o menu **Formatar** |
+| Formatar texto | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, listas e links no menu **Formatar** |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Minimizar a nota | botão da barra ou `Ctrl+W` — **não apaga**, volta pela bandeja |
 | Apagar a nota | `Ctrl+D` ou o menu de contexto — sempre pede confirmação, e vai para a lixeira |
@@ -95,22 +95,45 @@ inicialização" nas configurações do Windows e é I/O puro para consultar e r
 
 ## Texto rico
 
-Negrito, itálico e sublinhado, por `Ctrl+B` / `Ctrl+I` / `Ctrl+U` ou pelo menu **Formatar** do
-clique direito. Com texto selecionado, formata a seleção; sem seleção, vale para o que você
-digitar em seguida. **Limpar formatação** tira os três da seleção — ou da nota toda, se não
-houver seleção.
+O documento é **HTML**, no menu **Formatar** do clique direito:
 
-A cor do texto continua vindo da paleta da nota, não do documento: trocar a cor recolore tudo,
-em vez de deixar o texto antigo na cor antiga.
+| O quê | Como |
+| --- | --- |
+| Negrito, itálico, sublinhado | `Ctrl+B` / `Ctrl+I` / `Ctrl+U`, ou o menu |
+| Lista com marcadores | Formatar → Inserir lista |
+| Link | Formatar → Inserir link — a seleção vira o rótulo; sem seleção, o endereço |
+| Abrir um link | **Ctrl+clique** |
+| Copiar com formatação | Formatar → Copiar tudo |
+| Limpar formatação | Formatar → Limpar formatação (na seleção, ou na nota toda) |
 
-Cada nota grava **os dois formatos**: `rtf=` com a formatação e `text=` com o texto puro. O
-texto puro mantém o arquivo legível e pesquisável com `grep`, e é o que aparece na lista da
-bandeja. Nota gravada por uma versão anterior tem só `text=` e abre normalmente; se o RTF
-estiver corrompido, a nota abre pelo texto puro em vez de falhar.
+**Colar em e-mail e navegador** funciona porque a cópia oferece `text/html` *e* texto puro —
+quem aceita HTML recebe a formatação, quem não aceita recebe o texto. É o motivo de o formato
+ser HTML e não RTF.
 
-Detalhe de implementação que custou um bug: o `RTFEditorKit` do Swing é **8-bit** e recusa
-`Reader`/`Writer` com `RTF is an 8-bit format`. A serialização usa fluxo de bytes, mapeados
-para `String` em Latin-1, que preserva byte a byte.
+Ctrl+clique, e não clique simples, porque o painel é editável: ali o clique é do cursor de
+texto. Pelo mesmo motivo não dá para usar `HyperlinkListener`, que só dispara em painel
+somente-leitura.
+
+A cor do texto vem da paleta da nota, não do documento: trocar a cor recolore tudo. Os links
+ficam de fora — azul de link não é decoração, é sinal de que dá para clicar.
+
+Cada nota grava **os dois formatos**: `html=` com a formatação e `text=` com o texto puro. O
+texto puro mantém o arquivo pesquisável com `grep` e alimenta a lista da bandeja.
+
+### Notas de versões anteriores
+
+Abrem sem nada a fazer. Nota com `rtf=` (da versão anterior a esta) é convertida para HTML ao
+ser aberta e passa a gravar `html=`; nota só com `text=` também. Se o HTML estiver corrompido,
+a nota abre pelo texto puro em vez de falhar.
+
+### Duas armadilhas do Swing que valem registro
+
+`InsertHTMLTextAction` **não insere nada quando o cursor está no offset 0** — e não reclama.
+Como a nota abre com o cursor em 0, lista e link desapareciam em silêncio se você não clicasse
+antes. Por isso o cursor é levado para o fim quando está em zero.
+
+Marcar o texto com o atributo `HTML.Tag.A` para criar link **não funciona**: o escritor emite
+`<a href><u><p-implied></u></a>`, sem o rótulo. O link precisa entrar como HTML, pelo parser.
 
 ## Checagens
 
@@ -122,7 +145,8 @@ No Linux/macOS, `./run-checks.sh`. Cada grupo usa um diretório temporário pró
 checagens nunca tocam as suas notas.
 
 Cobrem lixeira e restauração, a migração de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem
-minimizar, apagar sem ressuscitar, e o ida-e-volta do texto rico.
+minimizar, apagar sem ressuscitar, o ida-e-volta do HTML, listas, links, a colagem com
+`text/html` e a conversão de notas antigas em RTF ou texto puro.
 
 **Por que não JUnit e `mvn test`:** nesta máquina o Kaspersky encerra o booter do
 maven-surefire como `PDM:Trojan.Win32.Generic`, então `mvn test` nunca chega a rodar. As
