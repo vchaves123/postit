@@ -27,7 +27,7 @@ No Linux/macOS, use `./postit.sh`.
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
 | Trocar a cor | botão `◑` ou `Ctrl+E` (6 cores) |
 | Fixar/soltar no topo | botão `●`/`○` ou `Ctrl+T` |
-| Apagar a nota | botão `×` ou `Ctrl+D` (pede confirmação se tiver texto) |
+| Apagar a nota | botão `×` ou `Ctrl+D` — vai para a lixeira, com confirmação se tiver texto |
 | Mostrar todas as notas | `Ctrl+Shift+A` ou clique no ícone da bandeja |
 | Configurações | `Ctrl+,`, menu da bandeja, ou menu de contexto |
 | Sair | `Ctrl+Q` ou o menu da bandeja |
@@ -72,6 +72,17 @@ inicialização" nas configurações do Windows e é I/O puro para consultar e r
 uma nota nunca mexe nas outras, e a gravação é atômica (arquivo temporário + `move`), então
 uma falha no meio não deixa nota truncada. Um `.lock` no diretório impede duas instâncias
 brigando pelos mesmos arquivos.
+
+### Lixeira
+
+Apagar **não** remove o arquivo: ele vai para `~/.postit/trash/<uuid>-<timestamp>.properties`.
+A pasta nasce no primeiro apagar, e o carimbo de tempo garante que restaurar uma nota e apagar
+de novo não sobrescreve a cópia anterior.
+
+Para restaurar, mova o arquivo de volta para `notes/` — sem renomear, porque o id da nota vem
+do nome do arquivo. O botão **"Abrir a lixeira"** em Configurações leva direto lá.
+
+Nada esvazia a lixeira automaticamente; apagar de vez é decisão sua, no explorador de arquivos.
 
 ## Estrutura
 
