@@ -316,7 +316,7 @@ public final class NoteStore {
                 .append("a { color: #0B57D0; }\n") // o mesmo azul de link da nota
                 // o mesmo recuo curto da nota, para o arquivo aberto no navegador nao
                 // mostrar a lista num lugar diferente de onde ela esta na tela
-                .append("ul, ol { margin: 0; padding-left: 31px; }\n")
+                .append("ul, ol { margin: 0; padding-left: 13px; }\n")
                 .append("</style>\n")
                 // aqui comentario e o certo: o recado e para o humano, nao para o programa
                 .append("<!-- Nao renomeie este arquivo: o id do recado vem do nome dele. -->\n")

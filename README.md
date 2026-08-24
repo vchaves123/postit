@@ -115,9 +115,9 @@ O documento é **HTML**, e a formatação fica numa **barra de ícones no rodap�
 | dois elos de corrente | inserir link — a seleção vira o rótulo; sem seleção, o endereço | menu Formatar |
 | borracha | limpar formatação (na seleção, ou na nota toda) | menu Formatar |
 
-O **recuo da lista é 21 px**, e não os 50 px que o Swing usa por padrão para `<ul>` — numa nota
-de 280 px, 50 px comem um sexto da linha e jogam o marcador para o meio do nada. Com 21 px o
-ponto sai a 19 px da coluna do texto normal e o texto do item a 27 px. Os números vêm de medição
+O **recuo da lista é 10 px**, e não os 50 px que o Swing usa por padrão para `<ul>` — numa nota
+de 280 px, 50 px comem um sexto da linha e jogam o marcador para o meio do nada. Com 10 px o
+ponto sai a 5 px da coluna do texto normal e o texto do item a 13 px. Os números vêm de medição
 no pixel pintado, e uma checagem trava a medida.
 
 Abrir um link é **Ctrl+clique**. Copiar a nota com formatação continua no menu **Formatar** do

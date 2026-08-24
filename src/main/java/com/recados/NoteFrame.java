@@ -288,10 +288,10 @@ public final class NoteFrame extends JFrame {
         css.addRule("body { font-family: 'Segoe UI', sans-serif; font-size: 11pt; margin: 0; }");
         css.addRule("p { margin: 0; }");
         // O recuo padrao do Swing para lista e 50px, o que numa nota de 280px de largura come
-        // um sexto da linha e joga o marcador para o meio do nada. Com 21px, medido no pixel
-        // pintado, o ponto sai em x=29 e o texto do item em x=37, contra x=10 do texto
+        // um sexto da linha e joga o marcador para o meio do nada. Com 10px, medido no pixel
+        // pintado, o ponto sai em x=15 e o texto do item em x=23, contra x=10 do texto
         // normal. O numero e escolha do usuario; a checagem trava a medida.
-        css.addRule("ul, ol { margin-top: 0; margin-bottom: 0; margin-left: 21px;"
+        css.addRule("ul, ol { margin-top: 0; margin-bottom: 0; margin-left: 10px;"
                 + " padding-left: 0; }");
         css.addRule("a { text-decoration: underline; }");
         return kit;

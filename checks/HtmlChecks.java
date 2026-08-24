@@ -127,10 +127,10 @@ public final class HtmlChecks {
         });
         int marcador = medidas[3] - medidas[1];
         int texto = medidas[2] - medidas[0];
-        Check.that("o marcador recua os 21px escolhidos, nao os 50 do padrao (" + marcador + ")",
-                marcador >= 15 && marcador <= 23);
+        Check.that("o marcador recua os 10px escolhidos, nao os 50 do padrao (" + marcador + ")",
+                marcador >= 1 && marcador <= 9);
         Check.that("o texto do item acompanha o marcador (" + texto + ")",
-                texto >= 23 && texto <= 31);
+                texto >= 9 && texto <= 17);
         Check.that("e sobra linha de texto util numa nota estreita",
                 Note.MIN_WIDTH - texto > 120);
     }
