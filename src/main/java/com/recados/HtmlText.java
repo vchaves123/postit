@@ -4,6 +4,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
@@ -96,5 +100,44 @@ final class HtmlText {
 
     static String escapeHtml(String text) {
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static final Pattern BODY = Pattern.compile("(?is)<body[^>]*>(.*)</body>");
+
+    /** O conteudo do {@code <body>}; o proprio texto se nao houver body reconhecivel. */
+    static String body(String html) {
+        Matcher matcher = BODY.matcher(html);
+        return matcher.find() ? matcher.group(1).strip() : html.strip();
+    }
+
+    /**
+     * Onde uma linha termina e a outra comeca. Num documento do Swing as linhas de uma nota
+     * costumam ser {@code <br>} dentro de <b>um</b> paragrafo -- e nao um paragrafo cada --,
+     * entao quebrar por linha e quebrar no {@code <br>}. O fecha-e-abre de paragrafo entra
+     * na conta para o caso de a nota ter recebido HTML colado de fora.
+     */
+    private static final Pattern LINE_BOUNDARY = Pattern.compile(
+            "(?i)<br\\s*/?>|</p\\s*>\\s*<p[^>]*>|</p\\s*>|<p[^>]*>|</?div[^>]*>");
+
+    /**
+     * Divide um trecho de HTML em linhas, ja sem as tags de bloco e sem as linhas vazias --
+     * linha em branco nao vira item de lista. A formatacao de dentro da linha (negrito,
+     * italico, link) vem junto, porque o corte e feito no HTML e nao no texto puro.
+     */
+    static List<String> lines(String inlineHtml) {
+        List<String> lines = new ArrayList<>();
+        for (String piece : LINE_BOUNDARY.split(inlineHtml)) {
+            String line = piece.strip();
+            if (!line.isEmpty() && !stripTags(line).isBlank()) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    private static final Pattern TAGS = Pattern.compile("(?s)<[^>]*>");
+
+    private static String stripTags(String html) {
+        return TAGS.matcher(html).replaceAll("").replace("&nbsp;", " ");
     }
 }

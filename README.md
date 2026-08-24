@@ -111,7 +111,7 @@ O documento é **HTML**, e a formatação fica numa **barra de ícones no rodap�
 | **B** | negrito | `Ctrl+B` |
 | *I* | itálico | `Ctrl+I` |
 | U̲ | sublinhado | `Ctrl+U` |
-| três linhas com marcadores | inserir lista | menu Formatar |
+| três linhas com marcadores | lista — **com texto selecionado, cada linha vira um item**; sem seleção, um item vazio | menu Formatar |
 | dois elos de corrente | inserir link — a seleção vira o rótulo; sem seleção, o endereço | menu Formatar |
 | borracha | limpar formatação (na seleção, ou na nota toda) | menu Formatar |
 
@@ -144,7 +144,7 @@ Abrem sem nada a fazer. Nota com `rtf=` (de duas versões atrás) é convertida 
 só com `text=` também — ver "Onde as notas ficam". Se o HTML estiver corrompido, a nota abre
 pelo texto puro em vez de falhar.
 
-### Três armadilhas do Swing que valem registro
+### Quatro armadilhas do Swing que valem registro
 
 `InsertHTMLTextAction` **não insere nada quando o cursor está no offset 0** — e não reclama.
 Como a nota abre com o cursor em 0, lista e link desapareciam em silêncio se você não clicasse
@@ -152,6 +152,11 @@ antes. Por isso o cursor é levado para o fim quando está em zero.
 
 Marcar o texto com o atributo `HTML.Tag.A` para criar link **não funciona**: o escritor emite
 `<a href><u><p-implied></u></a>`, sem o rótulo. O link precisa entrar como HTML, pelo parser.
+
+**`<br>` não cria parágrafo.** As linhas de uma nota ficam todas num parágrafo só (`p-implied`),
+separadas por `<br>` — quebrar por linha é quebrar no `<br>`, não iterar parágrafos. E o
+`HTMLDocument` guarda uma quebra própria no offset 0, então seleção que começa em zero (Ctrl+A)
+precisa pular essa primeira posição, senão a lista sai vazia.
 
 Botão que **recebe o foco apaga a seleção na tela**: você marca a palavra, clica no B, e não vê
 mais o que marcou. Os botões da barra de formatação são `setFocusable(false)` por isso, e uma
@@ -169,8 +174,8 @@ checagens nunca tocam as suas notas.
 Cobrem o formato do arquivo HTML e seus metadados, a pasta de minimizadas, a lixeira e a
 restauração, nota em branco apagando direto, a conversão do formato `.properties`, a migração
 de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem minimizar, apagar sem ressuscitar, a barra
-de formatação (aparece com o foco, não rouba o foco), o ida-e-volta do HTML, listas, links e a
-colagem com `text/html`.
+de formatação (aparece com o foco, não rouba o foco), o ida-e-volta do HTML, a lista feita a
+partir da seleção, links e a colagem com `text/html`.
 
 **Por que não JUnit e `mvn test`:** nesta máquina o Kaspersky encerra o booter do
 maven-surefire como `PDM:Trojan.Win32.Generic`, então `mvn test` nunca chega a rodar. As

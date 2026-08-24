@@ -22,8 +22,82 @@ public final class HtmlChecks {
     public static void run() throws Exception {
         idaEVolta();
         listasELinks();
+        listaDaSelecao();
         colagemFormatada();
         notasAntigas();
+    }
+
+    /**
+     * Com texto selecionado, o botao de lista transforma <b>cada linha selecionada</b> num
+     * item. Antes ele inseria um item vazio no meio do texto marcado, ignorando a selecao.
+     *
+     * <p>Linha aqui e {@code <br>}: no documento do Swing as linhas de uma nota ficam todas
+     * num paragrafo so, separadas por {@code <br>} -- nao um paragrafo cada.
+     */
+    private static void listaDaSelecao() throws Exception {
+        Check.grupo("HTML: lista a partir da selecao");
+        Path base = Files.createTempDirectory("recados-lista");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        String html = comLista(app, store, "um<br>dois<br>tres", 1, 500);
+        Check.that("tres linhas viraram tres itens", contagem(html, "<li") == 3);
+        Check.that("cada item ficou com o seu texto", html.contains("um") && html.contains("dois")
+                && html.contains("tres"));
+        Check.that("nao sobrou quebra solta fazendo linha vazia", !html.contains("<br"));
+
+        // a selecao e esticada para as bordas: meia palavra na ponta leva a linha inteira
+        String parcial = comLista(app, store, "primeira<br>segunda<br>terceira", 5, 15);
+        Check.that("selecao parcial virou duas linhas inteiras", contagem(parcial, "<li") == 2);
+        Check.that("a primeira linha entrou inteira", parcial.contains("primeira"));
+        Check.that("a linha nao selecionada ficou fora da lista",
+                parcial.indexOf("terceira") > parcial.indexOf("</ul>"));
+
+        String negrito = comLista(app, store, "um<br><b>dois</b><br>tres", 1, 500);
+        Check.that("o negrito de dentro da linha sobreviveu", negrito.contains("<b>dois</b>"));
+
+        String link = comLista(app, store,
+                "um<br><a href=\"https://exemplo.org\">site</a><br>tres", 1, 500);
+        Check.that("o link de dentro da linha sobreviveu",
+                link.contains("href=\"https://exemplo.org\"") && link.contains("site"));
+
+        String vazia = comLista(app, store, "um<br><br>dois", 1, 500);
+        Check.that("linha em branco nao vira item", contagem(vazia, "<li") == 2);
+
+        // selecao comecando em zero: o HTMLDocument tem uma quebra propria no offset 0, e
+        // parar nela deixava a lista vazia
+        String tudo = comLista(app, store, "um<br>dois", 0, 500);
+        Check.that("Ctrl+A tambem funciona", contagem(tudo, "<li") == 2);
+
+        String semSelecao = comLista(app, store, "um<br>dois", 3, 3);
+        Check.that("sem selecao, insere um item vazio para digitar",
+                contagem(semSelecao, "<li") == 1);
+        Check.that("sem selecao, o texto continua la",
+                semSelecao.contains("um") && semSelecao.contains("dois"));
+    }
+
+    /** Abre uma nota com este corpo, seleciona o trecho, aciona a lista e devolve o HTML. */
+    private static String comLista(RecadosApp app, NoteStore store, String corpo, int de, int ate)
+            throws Exception {
+        Note nota = Note.create();
+        nota.html("<html><body>" + corpo + "</body></html>");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(de, ate);
+            frame.insertList();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        SwingUtilities.invokeAndWait(frame::dispose);
+        return nota.html().toLowerCase();
+    }
+
+    private static int contagem(String texto, String agulha) {
+        int total = 0;
+        for (int at = texto.indexOf(agulha); at >= 0; at = texto.indexOf(agulha, at + 1)) {
+            total++;
+        }
+        return total;
     }
 
     private static void idaEVolta() throws Exception {

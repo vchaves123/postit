@@ -47,8 +47,6 @@ public final class NoteStore {
     private static final Pattern META = Pattern.compile(
             "(?is)<meta\\s+name=\"recados:([a-z0-9-]+)\"\\s+content=\"([^\"]*)\"\\s*/?>");
 
-    private static final Pattern BODY = Pattern.compile("(?is)<body[^>]*>(.*)</body>");
-
     /** Tags que valem uma quebra de linha ao extrair o texto puro do HTML. */
     private static final Pattern LINE_BREAKS = Pattern.compile(
             "(?i)<br\\s*/?>|</p>|</li>|</div>|</tr>|</h[1-6]>");
@@ -359,8 +357,7 @@ public final class NoteStore {
 
     /** O conteudo do {@code <body>}; o arquivo inteiro se nao houver body reconhecivel. */
     private static String body(String content) {
-        Matcher matcher = BODY.matcher(content);
-        return matcher.find() ? matcher.group(1).strip() : content.strip();
+        return HtmlText.body(content);
     }
 
     /**

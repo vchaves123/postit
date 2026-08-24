@@ -48,6 +48,7 @@ import javax.swing.TransferHandler;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import java.util.List;
 import java.util.Optional;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -343,9 +344,101 @@ public final class NoteFrame extends JFrame {
         bindStyle("control U", new StyledEditorKit.UnderlineAction());
     }
 
-    /** Insere uma lista com marcadores no ponto do cursor. */
+    /**
+     * Lista com marcadores. Com texto selecionado, <b>cada linha selecionada vira um item</b>
+     * -- que e o que se espera de um botao de lista; inserir um item vazio no meio do texto
+     * marcado nao ajudaria ninguem. Sem selecao, insere um item vazio para digitar.
+     *
+     * <p>Linha aqui e linha de verdade, do jeito que o Swing guarda: as linhas de uma nota
+     * sao {@code <br>} dentro de um paragrafo so, nao um paragrafo cada. E a selecao e
+     * esticada para as bordas das linhas -- quem marcou meia palavra da primeira linha quis
+     * a linha inteira na lista.
+     */
     public void insertList() {
-        insertHtml("<ul><li></li></ul>", HTML.Tag.UL);
+        if (!(textPane.getDocument() instanceof HTMLDocument doc)) {
+            return;
+        }
+        int selectionStart = textPane.getSelectionStart();
+        int selectionEnd = textPane.getSelectionEnd();
+        if (selectionEnd <= selectionStart) {
+            insertHtml("<ul><li></li></ul>", HTML.Tag.UL);
+            return;
+        }
+        try {
+            int from = lineStart(doc, skipEmptyLead(doc, selectionStart, selectionEnd));
+            int to = lineEnd(doc, Math.max(from, selectionEnd - 1));
+            List<String> items = HtmlText.lines(HtmlText.body(rangeAsHtml(from, to)));
+            if (items.isEmpty()) {
+                insertHtml("<ul><li></li></ul>", HTML.Tag.UL);
+                return;
+            }
+            StringBuilder list = new StringBuilder("<ul>");
+            for (String item : items) {
+                list.append("<li>").append(item).append("</li>");
+            }
+            list.append("</ul>");
+
+            // A lista e um bloco: ela mesma separa o que vem antes e depois. As quebras que
+            // delimitavam as linhas convertidas viram linha vazia se ficarem, entao saem com
+            // elas. A da frente so sai se nao for a primeira posicao util do documento.
+            int removeFrom = from > 1 && isBreak(doc, from - 1) ? from - 1 : from;
+            int removeTo = to < doc.getLength() && isBreak(doc, to) ? to + 1 : to;
+
+            doc.remove(removeFrom, removeTo - removeFrom);
+            textPane.setCaretPosition(removeFrom);
+            applyStyle(new HTMLEditorKit.InsertHTMLTextAction("lista", list.toString(),
+                    HTML.Tag.BODY, HTML.Tag.UL));
+        } catch (BadLocationException e) {
+            System.err.println("Nao foi possivel transformar a selecao em lista: "
+                    + e.getMessage());
+        }
+    }
+
+    /** O HTML de um trecho do documento, com a formatacao de dentro dele. */
+    private String rangeAsHtml(int from, int to) {
+        StringWriter out = new StringWriter();
+        try {
+            textPane.getEditorKit().write(out, textPane.getDocument(), from, to - from);
+            return out.toString();
+        } catch (IOException | BadLocationException e) {
+            return ""; // sem HTML nao ha o que dividir; o chamador insere item vazio
+        }
+    }
+
+    /**
+     * Pula a quebra de linha que o HTMLDocument mantem no comeco do documento. Sem isso, uma
+     * selecao que comeca em zero (Ctrl+A, por exemplo) pararia nela e a lista sairia vazia.
+     */
+    private static int skipEmptyLead(HTMLDocument doc, int start, int end) throws BadLocationException {
+        int at = start;
+        while (at < end && "\n".equals(doc.getText(at, 1))) {
+            at++;
+        }
+        return at;
+    }
+
+    /** O comeco da linha que contem esta posicao. */
+    private static int lineStart(HTMLDocument doc, int offset) {
+        int limit = doc.getParagraphElement(offset).getStartOffset();
+        int at = offset;
+        while (at > limit && !isBreak(doc, at - 1)) {
+            at--;
+        }
+        return at;
+    }
+
+    /** O fim da linha que contem esta posicao, sem incluir a quebra. */
+    private static int lineEnd(HTMLDocument doc, int offset) {
+        int limit = Math.min(doc.getParagraphElement(offset).getEndOffset(), doc.getLength());
+        int at = offset;
+        while (at < limit && !isBreak(doc, at)) {
+            at++;
+        }
+        return at;
+    }
+
+    private static boolean isBreak(HTMLDocument doc, int offset) {
+        return HTML.Tag.BR.toString().equals(doc.getCharacterElement(offset).getName());
     }
 
     /**
@@ -411,6 +504,14 @@ public final class NoteFrame extends JFrame {
         }
         insertHtml("<a href=\"" + HtmlText.escapeHtml(url.strip()) + "\">"
                 + HtmlText.escapeHtml(label) + "</a>", HTML.Tag.A);
+    }
+
+    /**
+     * Seleciona um trecho do texto, como o usuario faria com o mouse. Existe para as
+     * checagens poderem exercitar as acoes que dependem de selecao.
+     */
+    public void select(int start, int end) {
+        textPane.select(start, end);
     }
 
     /** Copia a nota inteira, com formatacao, para colar em e-mail ou navegador. */
