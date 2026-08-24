@@ -48,6 +48,9 @@ public final class WindowChecks {
 
         Check.that("nenhum botao da barra rouba o foco", !frame.formatBarStealsFocus());
         Check.that("a altura minima da nota cabe a barra", Note.MIN_HEIGHT >= 150);
+        // cada botao novo aperta este limite; e aqui que o proximo vai avisar
+        Check.that("a barra e a alca cabem na nota mais estreita",
+                frame.formatBarFitsIn(Note.MIN_WIDTH));
 
         SwingUtilities.invokeAndWait(frame::dispose);
     }

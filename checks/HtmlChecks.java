@@ -30,8 +30,71 @@ public final class HtmlChecks {
         listasELinks();
         listaDaSelecao();
         recuoDaLista();
+        desfazer();
         colagemFormatada();
         notasAntigas();
+    }
+
+    /**
+     * Desfazer e refazer. As duas armadilhas que isto precisa evitar:
+     *
+     * <p>A carga da nota nao pode estar na pilha -- para o documento, abrir a nota e inserir
+     * texto, e um Ctrl+Z logo depois de abrir apagaria a nota inteira.
+     *
+     * <p>Uma acao que mexe no documento varias vezes tem de voltar num passo. Meia conversao
+     * desfeita deixaria a nota num estado que nunca existiu na tela.
+     */
+    private static void desfazer() throws Exception {
+        Check.grupo("Desfazer");
+        Path base = Files.createTempDirectory("recados-undo");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.html("<html><body>um<br>dois<br>tres</body></html>");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        Check.that("nota recem-aberta nao tem nada para desfazer", !frame.canUndo());
+        SwingUtilities.invokeAndWait(frame::undo);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("Ctrl+Z numa nota recem-aberta nao apaga o texto",
+                nota.text().contains("um") && nota.text().contains("tres"));
+
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(1, 500);
+            frame.insertList();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("a lista foi feita", nota.html().toLowerCase().contains("<ul"));
+        Check.that("e ha o que desfazer", frame.canUndo());
+
+        SwingUtilities.invokeAndWait(frame::undo);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("desfazer tirou a lista", !nota.html().toLowerCase().contains("<ul"));
+        Check.that("e devolveu o texto", nota.text().contains("um")
+                && nota.text().contains("dois") && nota.text().contains("tres"));
+        Check.that("a conversao voltou num passo so, nao sobrou meia", !frame.canUndo());
+        Check.that("e da para refazer", frame.canRedo());
+
+        SwingUtilities.invokeAndWait(frame::redo);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("refazer trouxe a lista de volta", nota.html().toLowerCase().contains("<ul"));
+        Check.that("com os tres itens", contagem(nota.html().toLowerCase(), "<li") == 3);
+
+        // o link tambem apaga a selecao e insere: um passo, nao dois
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(1, 3);
+            frame.insertLink("https://exemplo.org", "site");
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("o link entrou", nota.html().contains("exemplo.org"));
+        SwingUtilities.invokeAndWait(frame::undo);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("desfazer tirou o link inteiro", !nota.html().contains("exemplo.org"));
+        Check.that("e devolveu o texto que estava selecionado", nota.text().contains("um"));
+
+        SwingUtilities.invokeAndWait(frame::dispose);
     }
 
     /**
@@ -88,6 +151,20 @@ public final class HtmlChecks {
                 contagem(semSelecao, "<li") == 1);
         Check.that("sem selecao, o texto continua la",
                 semSelecao.contains("um") && semSelecao.contains("dois"));
+
+        // a numerada e a mesma logica com <ol> no lugar de <ul>
+        String numerada = comLista(app, store, "um<br>dois<br>tres", 1, 500, true);
+        Check.that("a numerada usa <ol>", numerada.contains("<ol"));
+        Check.that("e nao <ul>", !numerada.contains("<ul"));
+        Check.that("com um item por linha selecionada", contagem(numerada, "<li") == 3);
+
+        String numeradaColada = comLista(app, store, "<p>um</p><p>dois</p>", 0, 500, true);
+        Check.that("numerada tambem no texto colado em paragrafos",
+                numeradaColada.contains("<ol") && contagem(numeradaColada, "<li") == 2);
+
+        String numeradaVazia = comLista(app, store, "um<br>dois", 3, 3, true);
+        Check.that("numerada sem selecao insere um item vazio",
+                numeradaVazia.contains("<ol") && contagem(numeradaVazia, "<li") == 1);
     }
 
     /**
@@ -147,16 +224,25 @@ public final class HtmlChecks {
         return -1;
     }
 
-    /** Abre uma nota com este corpo, seleciona o trecho, aciona a lista e devolve o HTML. */
     private static String comLista(RecadosApp app, NoteStore store, String corpo, int de, int ate)
             throws Exception {
+        return comLista(app, store, corpo, de, ate, false);
+    }
+
+    /** Abre uma nota com este corpo, seleciona o trecho, aciona a lista e devolve o HTML. */
+    private static String comLista(RecadosApp app, NoteStore store, String corpo, int de, int ate,
+            boolean numerada) throws Exception {
         Note nota = Note.create();
         nota.html("<html><body>" + corpo + "</body></html>");
         store.save(nota);
         NoteFrame frame = abrir(nota, app);
         SwingUtilities.invokeAndWait(() -> {
             frame.select(de, ate);
-            frame.insertList();
+            if (numerada) {
+                frame.insertNumberedList();
+            } else {
+                frame.insertList();
+            }
         });
         SwingUtilities.invokeAndWait(frame::flush);
         SwingUtilities.invokeAndWait(frame::dispose);

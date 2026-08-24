@@ -48,6 +48,8 @@ import javax.swing.TransferHandler;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.undo.CompoundEdit;
+import javax.swing.undo.UndoManager;
 import java.util.List;
 import java.util.Optional;
 import javax.swing.text.AttributeSet;
@@ -99,6 +101,13 @@ public final class NoteFrame extends JFrame {
     /** Azul de link. Mais forte que o texto de qualquer paleta, inclusive a azul. */
     private static final Color LINK_COLOR = new Color(0x0B57D0);
 
+    /**
+     * Quanto tempo sem editar fecha um passo de desfazer. Sem isto, cada tecla seria um
+     * passo e voltar uma frase custaria trinta Ctrl+Z; com isto, uma digitacao corrida volta
+     * de uma vez, e uma pausa marca onde ela termina.
+     */
+    private static final int UNDO_GROUP_MS = 700;
+
     private final Note note;
     private final Host host;
     private final JTextPane textPane = new JTextPane();
@@ -116,6 +125,24 @@ public final class NoteFrame extends JFrame {
 
     /** Nota apagada: nada mais deve ser gravado a partir desta janela. */
     private boolean discarded;
+
+    private final UndoManager undoManager = new UndoManager();
+
+    /**
+     * O passo de desfazer que esta aberto. Enquanto ele existe, o {@link UndoManager}
+     * absorve as edicoes seguintes dentro dele -- e assim que uma acao que mexe no documento
+     * varias vezes (virar lista, inserir link) volta com um Ctrl+Z so.
+     */
+    private CompoundEdit undoGroup;
+
+    private long lastEditAt;
+
+    /**
+     * Falso enquanto o programa, e nao o usuario, mexe no documento: a carga da nota e a
+     * recoloracao pela paleta. Sem isto o primeiro Ctrl+Z de uma nota recem-aberta apagaria
+     * o texto inteiro -- a carga e uma insercao como qualquer outra para o documento.
+     */
+    private boolean recordingUndo = true;
 
     public NoteFrame(Note note, Host host) {
         super("Recados");
@@ -207,6 +234,7 @@ public final class NoteFrame extends JFrame {
             }
         });
         attachPopup(textPane);
+        installUndo();
 
         JScrollPane scroll = new JScrollPane(textPane);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -239,23 +267,41 @@ public final class NoteFrame extends JFrame {
         formatBar.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 2));
         formatBar.setOpaque(false);
         formatBar.setVisible(false); // a nota nasce sem foco
-        formatBar.add(new GlyphButton(Glyph.BOLD, "Negrito (Ctrl+B)",
-                () -> applyStyle(new StyledEditorKit.BoldAction())));
-        formatBar.add(new GlyphButton(Glyph.ITALIC, "Italico (Ctrl+I)",
-                () -> applyStyle(new StyledEditorKit.ItalicAction())));
-        formatBar.add(new GlyphButton(Glyph.UNDERLINE, "Sublinhado (Ctrl+U)",
-                () -> applyStyle(new StyledEditorKit.UnderlineAction())));
-        formatBar.add(new GlyphButton(Glyph.LIST, "Inserir lista", this::insertList));
-        formatBar.add(new GlyphButton(Glyph.LINK, "Inserir link", this::promptLink));
-        formatBar.add(new GlyphButton(Glyph.ERASER,
-                "Limpar formatacao da selecao (ou da nota toda)", this::clearFormatting));
+        formatButton(Glyph.BOLD, "Negrito (Ctrl+B)",
+                () -> applyStyle(new StyledEditorKit.BoldAction()));
+        formatButton(Glyph.ITALIC, "Italico (Ctrl+I)",
+                () -> applyStyle(new StyledEditorKit.ItalicAction()));
+        formatButton(Glyph.UNDERLINE, "Sublinhado (Ctrl+U)",
+                () -> applyStyle(new StyledEditorKit.UnderlineAction()));
+        formatButton(Glyph.LIST, "Lista com marcadores -- cada linha selecionada vira um item",
+                this::insertList);
+        formatButton(Glyph.NUMBERED_LIST,
+                "Lista numerada -- cada linha selecionada vira um item", this::insertNumberedList);
+        formatButton(Glyph.LINK, "Inserir link", this::promptLink);
+        formatButton(Glyph.ERASER,
+                "Limpar formatacao da selecao (ou da nota toda)", this::clearFormatting);
         attachPopup(formatBar);
         return formatBar;
+    }
+
+    private void formatButton(Glyph glyph, String tooltip, Runnable action) {
+        formatBar.add(new GlyphButton(glyph, tooltip, action, GlyphButton.SMALL_SIZE));
     }
 
     /** Se a barra de formatacao esta na tela. Usado tambem pelas checagens. */
     public boolean formatBarVisible() {
         return formatBar.isVisible();
+    }
+
+    /**
+     * Se a barra inteira, mais a alca de redimensionar, cabe numa nota desta largura. Cada
+     * botao novo aperta esse limite -- foi o setimo (a lista numerada) que obrigou os botoes
+     * do rodape a serem menores que os da barra de titulo. A checagem confere no menor
+     * tamanho de nota, que e onde a conta estoura primeiro.
+     */
+    public boolean formatBarFitsIn(int noteWidth) {
+        int borda = 2; // a linha de contorno da nota, um pixel de cada lado
+        return formatBar.getPreferredSize().width + GRIP_SIZE + borda <= noteWidth;
     }
 
     /**
@@ -270,6 +316,96 @@ public final class NoteFrame extends JFrame {
             }
         }
         return false;
+    }
+
+    // -------------------------------------------------------------- desfazer
+
+    /**
+     * Desfazer e refazer. O Swing nao traz isto de graca: o documento avisa cada edicao, e
+     * quem guarda a pilha e o {@link UndoManager}.
+     */
+    private void installUndo() {
+        undoManager.setLimit(200);
+        textPane.getDocument().addUndoableEditListener(event -> {
+            if (!recordingUndo) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            if (undoGroup == null || now - lastEditAt > UNDO_GROUP_MS) {
+                openUndoGroup();
+            }
+            // vai para dentro do grupo aberto: o UndoManager oferece a edicao nova ao ultimo
+            // edit da pilha antes de empilhar, e um CompoundEdit sem end() aceita
+            undoManager.addEdit(event.getEdit());
+            lastEditAt = now;
+        });
+    }
+
+    private void openUndoGroup() {
+        closeUndoGroup();
+        undoGroup = new CompoundEdit();
+        undoManager.addEdit(undoGroup);
+    }
+
+    private void closeUndoGroup() {
+        if (undoGroup != null) {
+            undoGroup.end();
+            undoGroup = null;
+        }
+    }
+
+    /**
+     * Roda uma acao que mexe no documento mais de uma vez -- apagar a selecao e inserir no
+     * lugar, por exemplo -- como <b>um</b> passo de desfazer. Sem isto, virar uma lista
+     * precisaria de dois ou tres Ctrl+Z, e o meio do caminho seria um estado que o usuario
+     * nunca viu.
+     */
+    private void asOneUndoStep(Runnable action) {
+        openUndoGroup();
+        try {
+            action.run();
+        } finally {
+            closeUndoGroup();
+        }
+    }
+
+    /** Roda algo que o usuario nao pediu, sem sujar a pilha de desfazer. */
+    private void withoutUndo(Runnable action) {
+        boolean was = recordingUndo;
+        recordingUndo = false;
+        closeUndoGroup();
+        try {
+            action.run();
+        } finally {
+            recordingUndo = was;
+        }
+    }
+
+    public boolean canUndo() {
+        return undoManager.canUndo();
+    }
+
+    public boolean canRedo() {
+        return undoManager.canRedo();
+    }
+
+    public void undo() {
+        closeUndoGroup();
+        if (!undoManager.canUndo()) {
+            return;
+        }
+        // o proprio desfazer mexe no documento; gravar isso empilharia o desfazer do desfazer
+        withoutUndo(undoManager::undo);
+        scheduleSave();
+    }
+
+    public void redo() {
+        closeUndoGroup();
+        if (!undoManager.canRedo()) {
+            return;
+        }
+        withoutUndo(undoManager::redo);
+        scheduleSave();
     }
 
     // -------------------------------------------------------------- texto rico
@@ -310,9 +446,16 @@ public final class NoteFrame extends JFrame {
         if (html.isBlank()) {
             html = HtmlText.plainToHtml(note.text());
         }
-        textPane.setText(html);
-        textPane.setCaretPosition(0);
-        applyTextColor();
+        String conteudo = html;
+        // Nada da abertura da nota entra na pilha de desfazer. Se entrasse, o primeiro Ctrl+Z
+        // de uma nota recem-aberta apagaria o texto todo -- para o documento, carregar e
+        // inserir. O discardAllEdits e cinto e suspensorio para o que o kit dispare sozinho.
+        withoutUndo(() -> {
+            textPane.setText(conteudo);
+            textPane.setCaretPosition(0);
+            applyTextColor();
+        });
+        undoManager.discardAllEdits();
     }
 
     /**
@@ -363,13 +506,29 @@ public final class NoteFrame extends JFrame {
      * a linha inteira na lista.
      */
     public void insertList() {
+        insertList(HTML.Tag.UL);
+    }
+
+    /** A mesma coisa, numerada: {@code <ol>} em vez de {@code <ul>}. */
+    public void insertNumberedList() {
+        insertList(HTML.Tag.OL);
+    }
+
+    private void insertList(HTML.Tag tag) {
+        // apagar as linhas e inserir a lista tem de voltar junto: um Ctrl+Z que desfizesse
+        // meia conversao deixaria a nota num estado que nunca existiu na tela
+        asOneUndoStep(() -> buildList(tag));
+    }
+
+    private void buildList(HTML.Tag tag) {
+        String vazia = "<" + tag + "><li></li></" + tag + ">";
         if (!(textPane.getDocument() instanceof HTMLDocument doc)) {
             return;
         }
         int selectionStart = textPane.getSelectionStart();
         int selectionEnd = textPane.getSelectionEnd();
         if (selectionEnd <= selectionStart) {
-            insertHtml("<ul><li></li></ul>", HTML.Tag.UL);
+            insertHtml(vazia, tag);
             return;
         }
         try {
@@ -377,14 +536,14 @@ public final class NoteFrame extends JFrame {
             int to = lineEnd(doc, Math.max(from, selectionEnd - 1));
             List<String> items = HtmlText.lines(HtmlText.body(rangeAsHtml(from, to)));
             if (items.isEmpty()) {
-                insertHtml("<ul><li></li></ul>", HTML.Tag.UL);
+                insertHtml(vazia, tag);
                 return;
             }
-            StringBuilder list = new StringBuilder("<ul>");
+            StringBuilder list = new StringBuilder("<" + tag + ">");
             for (String item : items) {
                 list.append("<li>").append(item).append("</li>");
             }
-            list.append("</ul>");
+            list.append("</").append(tag).append(">");
 
             // A lista e um bloco: ela mesma separa o que vem antes e depois. As quebras que
             // delimitavam as linhas convertidas viram linha vazia se ficarem, entao saem com
@@ -406,7 +565,7 @@ public final class NoteFrame extends JFrame {
             }
             textPane.setCaretPosition(removeFrom);
             applyStyle(new HTMLEditorKit.InsertHTMLTextAction("lista", list.toString(),
-                    HTML.Tag.BODY, HTML.Tag.UL));
+                    HTML.Tag.BODY, tag));
         } catch (BadLocationException | IOException e) {
             System.err.println("Nao foi possivel transformar a selecao em lista: "
                     + e.getMessage());
@@ -505,24 +664,26 @@ public final class NoteFrame extends JFrame {
         if (url == null || url.isBlank()) {
             return;
         }
-        if (label == null || label.isBlank()) {
-            label = url;
-        }
+        String rotulo = label == null || label.isBlank() ? url : label;
 
-        // A ancora vai como HTML, e nao como atributo de caractere: marcar o texto com
-        // HTML.Tag.A faz o escritor emitir <a href><u><p-implied></u></a> sem o rotulo.
-        int start = textPane.getSelectionStart();
-        int end = textPane.getSelectionEnd();
-        if (end > start) {
-            try {
-                textPane.getDocument().remove(start, end - start);
-            } catch (BadLocationException e) {
-                System.err.println("Nao foi possivel substituir a selecao: " + e.getMessage());
-                return;
+        // apagar a selecao e inserir a ancora e um passo so para o Ctrl+Z: o meio do caminho
+        // -- a nota com a palavra apagada e sem o link ainda -- ninguem viu nem quis
+        asOneUndoStep(() -> {
+            // A ancora vai como HTML, e nao como atributo de caractere: marcar o texto com
+            // HTML.Tag.A faz o escritor emitir <a href><u><p-implied></u></a> sem o rotulo.
+            int start = textPane.getSelectionStart();
+            int end = textPane.getSelectionEnd();
+            if (end > start) {
+                try {
+                    textPane.getDocument().remove(start, end - start);
+                } catch (BadLocationException e) {
+                    System.err.println("Nao foi possivel substituir a selecao: " + e.getMessage());
+                    return;
+                }
             }
-        }
-        insertHtml("<a href=\"" + HtmlText.escapeHtml(url.strip()) + "\">"
-                + HtmlText.escapeHtml(label) + "</a>", HTML.Tag.A);
+            insertHtml("<a href=\"" + HtmlText.escapeHtml(url.strip()) + "\">"
+                    + HtmlText.escapeHtml(rotulo) + "</a>", HTML.Tag.A);
+        });
     }
 
     /**
@@ -655,7 +816,7 @@ public final class NoteFrame extends JFrame {
     /** Os desenhos dos botoes: os quatro primeiros da barra de titulo, o resto do rodape. */
     private enum Glyph {
         PLUS, COLOR, PIN_ON, PIN_OFF, MINIMIZE,
-        BOLD, ITALIC, UNDERLINE, LIST, LINK, ERASER
+        BOLD, ITALIC, UNDERLINE, LIST, NUMBERED_LIST, LINK, ERASER
     }
 
     /**
@@ -669,18 +830,28 @@ public final class NoteFrame extends JFrame {
 
         private static final int SIZE = 22;
 
+        /**
+         * Os da barra de formatacao sao menores: sao sete, e a 22px eles nao caberiam na
+         * nota mais estreita (160px) ao lado da alca de redimensionar.
+         */
+        private static final int SMALL_SIZE = 20;
+
         private Glyph glyph;
         private final Runnable action;
         private boolean hovered;
 
         GlyphButton(Glyph glyph, String tooltip, Runnable action) {
+            this(glyph, tooltip, action, SIZE);
+        }
+
+        GlyphButton(Glyph glyph, String tooltip, Runnable action, int size) {
             this.glyph = glyph;
             this.action = action;
             // Nao pode receber o foco: botao que rouba o foco do editor apaga a selecao na
             // tela, e quem clica no B depois de marcar uma palavra perde de vista o que
             // marcou. Assim o clique executa a acao e o cursor de texto fica onde estava.
             setFocusable(false);
-            setPreferredSize(new Dimension(SIZE, SIZE));
+            setPreferredSize(new Dimension(size, size));
             setToolTipText(tooltip);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             addMouseListener(new MouseAdapter() {
@@ -754,6 +925,15 @@ public final class NoteFrame extends JFrame {
                         g2.drawLine(x + 4, ly + 1, x + box, ly + 1);
                     }
                 }
+                // as mesmas tres linhas da lista, com algarismo no lugar do ponto
+                case NUMBERED_LIST -> {
+                    g2.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 7));
+                    for (int row = 0; row < 3; row++) {
+                        int ly = y + row * 4 + 1;
+                        g2.drawString(Integer.toString(row + 1), x - 1, ly + 4);
+                        g2.drawLine(x + 5, ly + 1, x + box, ly + 1);
+                    }
+                }
                 // dois elos de corrente, um enganchado no outro
                 case LINK -> {
                     g2.drawRoundRect(x, y + 3, 6, 5, 4, 4);
@@ -786,6 +966,9 @@ public final class NoteFrame extends JFrame {
     // -------------------------------------------------------------- comportamento
 
     private void installShortcuts() {
+        bind("control Z", this::undo);
+        bind("control Y", this::redo);
+        bind("control shift Z", this::redo);
         bind("control N", () -> host.newNote(this));
         bind("control W", () -> host.closeNote(this));
         bind("control D", () -> host.deleteNote(this));
@@ -868,7 +1051,10 @@ public final class NoteFrame extends JFrame {
         header.setBackground(palette.header());
         footer.setBackground(palette.body());
         textPane.setSelectionColor(palette.header().darker());
-        applyTextColor();
+        // Recolorir e consequencia de trocar a cor da nota, nao uma edicao do texto. Se
+        // entrasse na pilha, o Ctrl+Z devolveria a cor antiga so no documento, e a nota
+        // continuaria gravada com a cor nova -- os dois discordando.
+        withoutUndo(this::applyTextColor);
         paintForeground(header, palette.text());
         paintForeground(footer, palette.text()); // os botoes de formatacao tambem
         repaint();
@@ -925,6 +1111,11 @@ public final class NoteFrame extends JFrame {
 
     private JPopupMenu buildPopup() {
         JPopupMenu menu = new JPopupMenu();
+        // desligado quando nao ha o que desfazer, para o menu dizer a verdade
+        closeUndoGroup();
+        menu.add(enabled(item("Desfazer (Ctrl+Z)", this::undo), canUndo()));
+        menu.add(enabled(item("Refazer (Ctrl+Y)", this::redo), canRedo()));
+        menu.addSeparator();
         menu.add(buildFormatMenu());
         menu.addSeparator();
         menu.add(item("Nova nota", () -> host.newNote(this)));
@@ -949,12 +1140,18 @@ public final class NoteFrame extends JFrame {
                 () -> applyStyle(new StyledEditorKit.UnderlineAction())));
         menu.addSeparator();
         menu.add(item("Inserir lista", this::insertList));
+        menu.add(item("Inserir lista numerada", this::insertNumberedList));
         menu.add(item("Inserir link...", this::promptLink));
         menu.addSeparator();
         menu.add(item("Copiar tudo (com formatacao)", this::copyAll));
         menu.addSeparator();
         menu.add(item("Limpar formatacao", this::clearFormatting));
         return menu;
+    }
+
+    private static JMenuItem enabled(JMenuItem item, boolean enabled) {
+        item.setEnabled(enabled);
+        return item;
     }
 
     private static JMenuItem item(String text, Runnable action) {

@@ -27,6 +27,7 @@ No Linux/macOS, use `./recados.sh`.
 | Nova nota | botão `+`, `Ctrl+N`, ou o menu da bandeja |
 | Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores; a padrão é azul) |
 | Formatar texto | a **barra de ícones no rodapé** (aparece com a nota em foco) |
+| Desfazer / refazer | `Ctrl+Z` / `Ctrl+Y` (ou `Ctrl+Shift+Z`), e no menu de contexto |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Minimizar a nota | botão da barra ou `Ctrl+W` — **não apaga**, volta pela bandeja |
 | Apagar a nota | `Ctrl+D` ou o menu de contexto — pede confirmação e vai para a lixeira; nota **em branco** apaga direto |
@@ -111,7 +112,8 @@ O documento é **HTML**, e a formatação fica numa **barra de ícones no rodap�
 | **B** | negrito | `Ctrl+B` |
 | *I* | itálico | `Ctrl+I` |
 | U̲ | sublinhado | `Ctrl+U` |
-| três linhas com marcadores | lista — **com texto selecionado, cada linha vira um item**; sem seleção, um item vazio | menu Formatar |
+| três linhas com marcadores | lista com marcadores — **com texto selecionado, cada linha vira um item**; sem seleção, um item vazio | menu Formatar |
+| três linhas numeradas | a mesma coisa, numerada (`<ol>`) | menu Formatar |
 | dois elos de corrente | inserir link — a seleção vira o rótulo; sem seleção, o endereço | menu Formatar |
 | borracha | limpar formatação (na seleção, ou na nota toda) | menu Formatar |
 
@@ -122,7 +124,10 @@ no pixel pintado, e uma checagem trava a medida.
 
 Abrir um link é **Ctrl+clique**. Copiar a nota com formatação continua no menu **Formatar** do
 clique direito, junto de tudo o que está na barra — é ação da nota inteira, não da seleção, e
-tirá-la da barra é o que faz os seis ícones caberem na nota mais estreita (160 px).
+tirá-la da barra é parte do que faz os ícones caberem na nota mais estreita (160 px). A outra
+parte é o tamanho: os botões do rodapé têm 20 px, e não 22 px como os da barra de título, porque
+com sete a 22 px a barra não caberia ao lado da alça. Uma checagem confere essa conta — é onde o
+oitavo botão vai avisar que não cabe mais.
 
 A barra fica **embaixo**, e não na barra de título, para não misturar ações da *janela* (nova
 nota, cor, fixar, minimizar) com ações do *texto*. E aparece só com a nota em foco: nota que
@@ -142,6 +147,26 @@ somente-leitura.
 
 A cor do texto vem da paleta da nota, não do documento: trocar a cor recolore tudo. Os links
 ficam de fora — azul de link não é decoração, é sinal de que dá para clicar.
+
+### Desfazer
+
+`Ctrl+Z` desfaz, `Ctrl+Y` (ou `Ctrl+Shift+Z`) refaz, e o menu de contexto tem os dois, cinzentos
+quando não há o que fazer. O Swing não traz isso de graça: o documento avisa cada edição e um
+`UndoManager` guarda a pilha (200 passos).
+
+Duas coisas que decidem se o undo ajuda ou atrapalha:
+
+- **A abertura da nota não entra na pilha.** Para o documento, carregar a nota é inserir texto —
+  se contasse, o primeiro `Ctrl+Z` de uma nota recém-aberta apagaria tudo. Recolorir pela paleta
+  também fica fora: desfazer devolveria a cor antiga só no documento, e a nota continuaria
+  gravada com a nova.
+- **Uma ação vale um passo.** Virar linhas em lista, ou trocar a seleção por um link, mexe no
+  documento duas ou três vezes; as edições vão dentro de um `CompoundEdit`, então um `Ctrl+Z`
+  volta a ação inteira em vez de parar num meio-caminho que ninguém viu.
+
+Digitação corrida também vira um passo só: edições que chegam com menos de 700 ms de intervalo
+entram no mesmo grupo, e uma pausa marca onde ele termina. Sem isso, voltar uma frase custaria
+uma tecla `Ctrl+Z` por letra.
 
 ### Notas de versões anteriores
 
@@ -181,7 +206,8 @@ checagens nunca tocam as suas notas.
 Cobrem o formato do arquivo HTML e seus metadados, a pasta de minimizadas, a lixeira e a
 restauração, nota em branco apagando direto, a conversão do formato `.properties`, a migração
 de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem minimizar, apagar sem ressuscitar, a barra
-de formatação (aparece com o foco, não rouba o foco), o ida-e-volta do HTML, a lista feita a
+de formatação (aparece com o foco, não rouba o foco, e cabe na nota mais estreita), desfazer e
+refazer, o ida-e-volta do HTML, a lista com marcadores e a numerada feitas a
 partir da seleção, links e a colagem com `text/html`.
 
 **Por que não JUnit e `mvn test`:** nesta máquina o Kaspersky encerra o booter do
