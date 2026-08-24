@@ -31,11 +31,86 @@ public final class HtmlChecks {
         listaDaSelecao();
         recuoDaLista();
         desfazer();
+        notaNovaRecebeOTexto();
         teclaEnter();
         limparFormatacao();
         fonteMonoespacada();
         colagemFormatada();
         notasAntigas();
+    }
+
+    /**
+     * O que se digita numa nota nova tem de ir para o <b>corpo</b> do documento.
+     *
+     * <p>Esta checagem existe por causa de um travamento relatado pelo usuario, e repete os
+     * passos dele. A causa: o cursor era posto no offset 0, e num HTMLDocument o offset 0
+     * pertence ao {@code <head>} -- que tem um paragrafo implicito proprio. Tudo o que ele
+     * digitava numa nota recem-criada entrava no cabecalho, fora do corpo. Dali em diante
+     * nada funcionava: o botao de lista nao achava paragrafo nenhum e nao criava item algum,
+     * o ENTER nao dividia nada, e o documento chegou a uma forma em que o layout do Swing
+     * entrou em laco infinito -- 2,5 milhoes de views e 4,5 GB antes de eu encerrar.
+     */
+    private static void notaNovaRecebeOTexto() throws Exception {
+        Check.grupo("Nota nova recebe o texto no corpo");
+        Path base = Files.createTempDirectory("recados-nota-nova");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        // 1 e 2: item1 ENTER item2 ENTER item3
+        SwingUtilities.invokeAndWait(() -> {
+            frame.type("item1");
+            frame.pressEnter();
+            frame.type("item2");
+            frame.pressEnter();
+            frame.type("item3");
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        String digitado = semCor(nota.html().toLowerCase());
+        Check.that("o texto foi para o corpo, e nao para o cabecalho",
+                !cabecalho(digitado).contains("item1"));
+        Check.that("cada linha virou um paragrafo", contagem(digitado, "<p") == 3);
+        Check.that("com o texto todo", nota.text().contains("item1")
+                && nota.text().contains("item2") && nota.text().contains("item3"));
+
+        // 3: selecionar os tres e pedir lista -- antes saia uma linha so, com um marcador
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(0, 1000);
+            frame.insertList();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("os tres viraram tres itens",
+                contagem(semCor(nota.html().toLowerCase()), "<li") == 3);
+
+        // 5: ENTER dentro da lista cria o item seguinte
+        SwingUtilities.invokeAndWait(() -> {
+            int meio = nota.text().indexOf("item2");
+            frame.select(meio, meio);
+            frame.pressEnter();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("ENTER na lista abriu mais um item",
+                contagem(semCor(nota.html().toLowerCase()), "<li") == 4);
+
+        // 7: e o desfazer volta ao que era, sem travar
+        SwingUtilities.invokeAndWait(frame::undo);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("desfazer devolveu os tres itens",
+                contagem(semCor(nota.html().toLowerCase()), "<li") == 3);
+        Check.that("e o texto continua inteiro", nota.text().contains("item1")
+                && nota.text().contains("item2") && nota.text().contains("item3"));
+
+        SwingUtilities.invokeAndWait(frame::dispose);
+    }
+
+    /** O que esta entre {@code <head>} e {@code </head>}, para conferir que nada foi parar la. */
+    private static String cabecalho(String html) {
+        int inicio = html.indexOf("<head");
+        int fim = html.indexOf("</head>");
+        return inicio >= 0 && fim > inicio ? html.substring(inicio, fim) : "";
     }
 
     /**

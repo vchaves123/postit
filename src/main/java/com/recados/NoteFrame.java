@@ -494,14 +494,19 @@ public final class NoteFrame extends JFrame {
         // Conteudo solto (texto com <br>) vira um <p> por linha. Sem isto a tecla ENTER nao
         // funciona: o insert-break do Swing divide o paragrafo onde o cursor esta, e fora de
         // um <p> de verdade nao ha o que dividir -- a tecla inseria um "\n" invisivel.
-        String conteudo = "<html><body>"
-                + HtmlText.toParagraphs(HtmlText.body(html)) + "</body></html>";
+        String corpo = HtmlText.toParagraphs(HtmlText.body(html));
+        if (corpo.isBlank()) {
+            // Nota vazia ainda e um paragrafo vazio. Sem ele o <body> nao tem onde receber
+            // texto, e o que for digitado vai parar em qualquer lugar que o Swing escolher.
+            corpo = "<p></p>";
+        }
+        String conteudo = "<html><body>" + corpo + "</body></html>";
         // Nada da abertura da nota entra na pilha de desfazer. Se entrasse, o primeiro Ctrl+Z
         // de uma nota recem-aberta apagaria o texto todo -- para o documento, carregar e
         // inserir. O discardAllEdits e cinto e suspensorio para o que o kit dispare sozinho.
         withoutUndo(() -> {
             textPane.setText(conteudo);
-            textPane.setCaretPosition(0);
+            textPane.setCaretPosition(bodyStart());
             applyTypography();
         });
         undoManager.discardAllEdits();
@@ -857,6 +862,35 @@ public final class NoteFrame extends JFrame {
         textPane.getTransferHandler().exportToClipboard(textPane, clipboard, TransferHandler.COPY);
     }
 
+    /**
+     * A primeira posicao <b>dentro do corpo</b> do documento.
+     *
+     * <p>O offset 0 nao serve: num HTMLDocument ele pertence ao {@code <head>}, que tem um
+     * paragrafo implicito proprio. Deixar o cursor ali fazia o texto digitado numa nota nova
+     * entrar no cabecalho em vez do corpo -- e dali em diante nada funcionava: a lista nao
+     * achava paragrafos, o ENTER nao dividia nada, e o documento ficava numa forma que
+     * chegou a travar o layout do Swing.
+     */
+    private int bodyStart() {
+        Document doc = textPane.getDocument();
+        if (doc instanceof HTMLDocument html) {
+            Element body = childNamed(html.getDefaultRootElement(), HTML.Tag.BODY);
+            if (body != null) {
+                return Math.min(body.getStartOffset(), doc.getLength());
+            }
+        }
+        return Math.min(1, doc.getLength());
+    }
+
+    private static Element childNamed(Element parent, HTML.Tag tag) {
+        for (int i = 0; i < parent.getElementCount(); i++) {
+            if (tag.toString().equals(parent.getElement(i).getName())) {
+                return parent.getElement(i);
+            }
+        }
+        return null;
+    }
+
     /** O href sob uma posicao do texto, quando ha um. */
     private Optional<String> linkAt(int offset) {
         if (!(textPane.getDocument() instanceof HTMLDocument doc)) {
@@ -940,6 +974,15 @@ public final class NoteFrame extends JFrame {
     public boolean caretInsideList() {
         return textPane.getDocument() instanceof HTMLDocument doc
                 && enclosing(doc, textPane.getCaretPosition(), HTML.Tag.LI) != null;
+    }
+
+    /**
+     * Insere texto no cursor, como o teclado faria. Existe para as checagens conseguirem
+     * reproduzir uma sessao de digitacao de verdade -- foi digitando numa nota nova que o
+     * texto ia para o cabecalho do documento.
+     */
+    public void type(String text) {
+        textPane.replaceSelection(text);
     }
 
     /** A tecla ENTER, sem passar pelo teclado. Para as checagens exercitarem a quebra. */

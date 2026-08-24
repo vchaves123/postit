@@ -185,6 +185,14 @@ O menu **Formatar** do clique direito continua existindo: é onde os atalhos apa
 quem aceita HTML recebe a formatação, quem não aceita recebe o texto. É o motivo de o formato
 ser HTML e não RTF.
 
+**O offset 0 pertence ao `<head>`.** Num `HTMLDocument`, o offset 0 fica dentro do cabeçalho, que
+tem um parágrafo implícito próprio — o corpo só começa no 1. O cursor era posto em 0 ao abrir a
+nota, então **tudo o que se digitava numa nota nova entrava no `<head>`**: o botão de lista não
+achava parágrafo e não criava item, o `ENTER` não dividia nada, e o documento chegou a uma forma
+em que o layout do Swing entrou em laço infinito (2,5 milhões de views e 4,5 GB antes de o
+processo ser encerrado). O cursor agora vai para o início do `<body>`, e nota vazia nasce com um
+parágrafo vazio para receber o texto.
+
 Ctrl+clique, e não clique simples, porque o painel é editável: ali o clique é do cursor de
 texto. Pelo mesmo motivo não dá para usar `HyperlinkListener`, que só dispara em painel
 somente-leitura.
