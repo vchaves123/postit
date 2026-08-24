@@ -10,8 +10,8 @@ public record Palette(String name, Color body, Color header, Color text) {
 
     /**
      * A primeira e a cor padrao de nota nova, e a que o icone do aplicativo usa. Azul, e nao
-     * amarelo, para o Recados nao ter a cara de um produto de marca: a 3M reivindica o amarelo
-     * canario sobre a superficie inteira de notas adesivas.
+     * amarelo, para o Recados nao ter a cara de um produto de marca: o amarelo aplicado sobre
+     * a superficie inteira de uma nota adesiva e marca registrada de terceiros.
      *
      * <p>A ordem daqui nao afeta nota nenhuma ja gravada -- o arquivo guarda o nome da cor,
      * nao a posicao.

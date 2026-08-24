@@ -44,8 +44,8 @@ ou perder o foco — não existe botão de salvar.
 
 ## Por que azul, e não amarelo
 
-A cor padrão da nota e o ícone do aplicativo são **azuis** de propósito. A 3M tem registro da
-cor "canary yellow" aplicada sobre a superfície inteira de notas adesivas, e há relato de
+A cor padrão da nota e o ícone do aplicativo são **azuis** de propósito. O amarelo aplicado
+sobre a superfície inteira de uma nota adesiva é marca registrada de terceiros, e há relato de
 acionamento contra versão *digital* de nota adesiva na mesma cor. O amarelo continua na paleta
 como uma das seis opções — o que ele não é mais é a identidade visual do app.
 
