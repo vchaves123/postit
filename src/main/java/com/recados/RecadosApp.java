@@ -229,9 +229,10 @@ public final class RecadosApp implements NoteFrame.Host {
     }
 
     @Override
-    public void saveNote(Note note) {
-        store.save(note);
+    public boolean saveNote(Note note) {
+        boolean saved = store.save(note);
         refreshTrayMenu();
+        return saved;
     }
 
     @Override

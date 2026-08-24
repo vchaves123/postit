@@ -80,7 +80,8 @@ public final class NoteFrame extends JFrame {
 
         void deleteNote(NoteFrame frame);
 
-        void saveNote(Note note);
+        /** {@code false} se a nota nao chegou ao disco: a janela vai tentar de novo. */
+        boolean saveNote(Note note);
 
         void openSettings(NoteFrame origin);
 
@@ -92,6 +93,10 @@ public final class NoteFrame extends JFrame {
     private static final int HEADER_HEIGHT = 28;
     private static final int GRIP_SIZE = 14;
     private static final int SAVE_DELAY_MS = 500;
+
+    /** Quantas vezes o autosave insiste depois de uma falha de gravacao. */
+    private static final int SAVE_RETRIES = 5;
+
     private static final int MIN_WIDTH = Note.MIN_WIDTH;
     private static final int MIN_HEIGHT = Note.MIN_HEIGHT;
 
@@ -143,6 +148,9 @@ public final class NoteFrame extends JFrame {
      * o texto inteiro -- a carga e uma insercao como qualquer outra para o documento.
      */
     private boolean recordingUndo = true;
+
+    /** Falhas de gravacao seguidas; zera assim que uma gravacao passa. */
+    private int failedSaves;
 
     public NoteFrame(Note note, Host host) {
         super("Recados");
@@ -1178,7 +1186,23 @@ public final class NoteFrame extends JFrame {
         }
         note.text(plainText());
         note.html(htmlText());
-        host.saveNote(note);
+        if (host.saveNote(note)) {
+            failedSaves = 0;
+            return;
+        }
+        // Falha de gravacao aqui e quase sempre passageira -- algum processo com o arquivo
+        // aberto por um instante --, entao a resposta certa e tentar de novo, nao desistir do
+        // que o usuario escreveu. O limite existe para o caso de a falha ser permanente
+        // (disco cheio, pasta sem permissao): ai insistir a cada meio segundo para sempre so
+        // enche o log. A proxima tecla recomeca a contagem.
+        if (++failedSaves <= SAVE_RETRIES) {
+            System.err.println("Nova tentativa de gravar a nota " + note.id()
+                    + " em " + SAVE_DELAY_MS + "ms (" + failedSaves + "/" + SAVE_RETRIES + ")");
+            saveTimer.restart();
+        } else {
+            System.err.println("Desistindo de gravar a nota " + note.id()
+                    + " por agora; a proxima edicao tenta de novo.");
+        }
     }
 
     /**

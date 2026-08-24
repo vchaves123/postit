@@ -18,6 +18,47 @@ public final class WindowChecks {
         somenteAAlcaRedimensiona();
         barraDeFormatacao();
         notaEmBranco();
+        gravacaoTentaDeNovo();
+    }
+
+    /**
+     * Gravacao que falha e tentada de novo sozinha. No Windows a troca do arquivo falha
+     * enquanto outro processo estiver com ele aberto por um instante -- antivirus, indexador
+     * --, e como o resultado era ignorado, o que o usuario escreveu ia embora em silencio.
+     * Aqui o obstaculo e uma pasta ocupada no lugar do arquivo; tirando ela, a nota tem de
+     * chegar ao disco sem o usuario fazer nada.
+     */
+    private static void gravacaoTentaDeNovo() throws Exception {
+        Check.grupo("Gravacao que falha e tentada de novo");
+        Path base = Files.createTempDirectory("recados-retry");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.html("<html><body>texto que nao pode se perder</body></html>");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        Path arquivo = base.resolve("notes").resolve(nota.id() + ".html");
+        Path ocupado = arquivo.resolve("ocupado.txt");
+        Files.delete(arquivo);
+        Files.createDirectory(arquivo);
+        Files.writeString(ocupado, "impede a gravacao");
+
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("a gravacao nao passou, como esperado", Files.isDirectory(arquivo));
+
+        // o obstaculo sai; ninguem toca na nota
+        Files.delete(ocupado);
+        Files.delete(arquivo);
+        Thread.sleep(1500); // mais que o atraso do autosave
+        SwingUtilities.invokeAndWait(() -> { });
+
+        Check.that("a nota chegou ao disco sozinha", Files.isRegularFile(arquivo));
+        Check.that("com o texto intacto",
+                Files.readString(arquivo).contains("texto que nao pode se perder"));
+
+        SwingUtilities.invokeAndWait(frame::dispose);
     }
 
     /**

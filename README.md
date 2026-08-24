@@ -290,6 +290,16 @@ truncada. O `move` usa `ATOMIC_MOVE`, e não só `REPLACE_EXISTING`: no Windows,
 desaparecida. Não é teórico — foi assim que uma checagem começou a falhar de vez em quando, e
 foi essa checagem que revelou o problema.
 
+Só que a troca atômica **falha** enquanto outro processo estiver com o arquivo aberto, mesmo por
+um instante: antivírus, indexador, o explorador. Isso também apareceu de verdade, como uma
+gravação perdida numa rodada de checagens. Então:
+
+- o `move` **insiste** algumas vezes com pausa curta (o bloqueio dura milissegundos) e, só
+  depois, cai na troca não atômica — perder a atomicidade é ruim, perder a gravação é pior;
+- `save` **devolve se conseguiu**, e a janela remarca o autosave quando não conseguiu, até cinco
+  vezes. Antes o resultado era ignorado, e o que você tinha escrito ia embora em silêncio;
+- o temporário de uma gravação que não completou é apagado, e não fica de lixo na pasta.
+
 ### Minimizar não é apagar, e minimizada é a pasta
 
 O botão da barra de título **minimiza** a nota — barra horizontal, como o minimizar do Windows:

@@ -175,8 +175,13 @@ public final class NoteStore {
      * antes de ser reescrito: o move e atomico, entao a nota existe em exatamente um lugar
      * em qualquer instante. Gravar no destino e depois apagar a origem deixaria uma janela
      * em que um desligamento no meio produz duas notas com o mesmo id.
+     *
+     * @return {@code false} se a nota nao chegou ao disco. Quem chamou tem de tentar de novo
+     *         mais tarde: uma falha aqui e quase sempre passageira (algum processo com o
+     *         arquivo aberto por um instante), e engolir isso em silencio perde o que o
+     *         usuario acabou de escrever.
      */
-    public void save(Note note) {
+    public boolean save(Note note) {
         Path target = folderFor(note.visible()).resolve(note.id() + EXTENSION);
         Path other = folderFor(!note.visible()).resolve(note.id() + EXTENSION);
         if (!Files.exists(target) && Files.exists(other)) {
@@ -185,7 +190,7 @@ public final class NoteStore {
             } catch (IOException e) {
                 System.err.println("Falha ao mover a nota " + note.id() + " para " + target
                         + ": " + e.getMessage());
-                return; // gravar no outro lugar deixaria o estado mentindo
+                return false; // gravar no outro lugar deixaria o estado mentindo
             }
         }
 
@@ -193,24 +198,72 @@ public final class NoteStore {
         try {
             Files.writeString(temp, render(note), StandardCharsets.UTF_8);
             replace(temp, target);
+            return true;
         } catch (IOException e) {
             System.err.println("Falha ao salvar nota " + note.id() + ": " + e.getMessage());
+            discardTemp(temp);
+            return false;
         }
     }
+
+    /** O temporario de uma gravacao que nao completou nao serve para nada; nao fica de lixo. */
+    private static void discardTemp(Path temp) {
+        try {
+            Files.deleteIfExists(temp);
+        } catch (IOException e) {
+            System.err.println("Sobrou um arquivo temporario em " + temp + ": " + e.getMessage());
+        }
+    }
+
+    /** Quantas vezes insistir na troca antes de desistir dela. */
+    private static final int REPLACE_ATTEMPTS = 5;
+
+    /** Pausa entre tentativas. Curta de proposito: isto roda na thread da interface. */
+    private static final int REPLACE_PAUSE_MS = 20;
 
     /**
      * Troca um arquivo pelo outro sem que exista um instante em que a nota nao esta em lugar
      * nenhum. {@code REPLACE_EXISTING} sozinho nao garante isso: no Windows ele apaga o
      * destino e depois renomeia, e quem estiver lendo a pasta nesse meio -- o proprio Recados
      * abrindo, um backup, o explorador -- ve a nota desaparecida. Com {@code ATOMIC_MOVE} a
-     * troca e uma operacao so. Se o sistema de arquivos nao suportar, cai no comportamento
-     * antigo, que e melhor que nao gravar.
+     * troca e uma operacao so.
+     *
+     * <p>Mas no Windows a troca atomica <b>falha</b> enquanto outro processo estiver com o
+     * arquivo aberto, mesmo por um instante: antivirus, indexador, o explorador de arquivos.
+     * Isto apareceu de verdade, como uma gravacao perdida numa rodada de checagens. Por isso
+     * insiste algumas vezes com uma pausa curta -- o bloqueio dura milissegundos -- e so
+     * depois cai na troca nao atomica, que abre a janelinha de ausencia mas grava. Perder a
+     * atomicidade e ruim; perder a gravacao e pior.
+     *
+     * <p>A pausa e curta porque isto roda na thread da interface: o total, no pior caso, fica
+     * abaixo de um oitavo de segundo.
      */
     private static void replace(Path source, Path target) throws IOException {
+        IOException lastFailure = null;
+        for (int attempt = 0; attempt < REPLACE_ATTEMPTS; attempt++) {
+            try {
+                Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+                return;
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                return;
+            } catch (IOException e) {
+                lastFailure = e;
+                pause();
+            }
+        }
         try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw lastFailure; // o primeiro erro diz mais do que o do ultimo recurso
+        }
+    }
+
+    private static void pause() {
+        try {
+            Thread.sleep(REPLACE_PAUSE_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

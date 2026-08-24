@@ -12,6 +12,7 @@ public final class StoreChecks {
         arquivoHtml();
         minimizadaEAPasta();
         formatoAntigo();
+        gravacaoQueFalha();
         lixeira();
         emBranco();
         migracao();
@@ -181,6 +182,35 @@ public final class StoreChecks {
         Check.that("segunda leitura ja e do .html", new NoteStore(base).loadAll().size() == 1);
         Check.that("nao converteu duas vezes",
                 new NoteStore(base).loadAll().get(0).html().contains("<b>negrito antigo</b>"));
+    }
+
+    /**
+     * Gravacao que nao completa tem de <b>avisar</b>, para a janela tentar de novo. Isto
+     * apareceu de verdade: no Windows a troca atomica falha enquanto outro processo estiver
+     * com o arquivo aberto por um instante (antivirus, indexador), e como o resultado era
+     * ignorado, a nota perdia o que o usuario tinha escrito, em silencio.
+     *
+     * <p>Para simular a falha sem depender de antivirus, o destino e uma <b>pasta com algo
+     * dentro</b>, com o nome do arquivo da nota: nenhum move consegue substituir isso. (Pasta
+     * vazia nao serve: o Windows troca uma dessas por arquivo sem reclamar.)
+     */
+    private static void gravacaoQueFalha() throws Exception {
+        Check.grupo("Gravacao que falha avisa");
+        Path base = Files.createTempDirectory("recados-falha");
+        NoteStore store = new NoteStore(base);
+
+        Note nota = Note.create();
+        nota.text("nao pode se perder em silencio");
+        Check.that("gravacao normal devolve true", store.save(nota));
+
+        Path obstaculo = base.resolve("notes").resolve(nota.id() + ".html");
+        Files.delete(obstaculo);
+        Files.createDirectory(obstaculo);
+        Files.writeString(obstaculo.resolve("ocupado.txt"), "nao da para substituir");
+
+        Check.that("gravacao impossivel devolve false", !store.save(nota));
+        Check.that("e nao deixa arquivo temporario para tras",
+                !Files.exists(base.resolve("notes").resolve(nota.id() + ".html.tmp")));
     }
 
     private static void lixeira() throws Exception {
