@@ -42,15 +42,6 @@ Clique com o botão direito em qualquer parte da nota para o menu de contexto.
 O texto salva sozinho meio segundo depois da última tecla, e também ao mover, redimensionar
 ou perder o foco — não existe botão de salvar.
 
-## Por que azul, e não amarelo
-
-A cor padrão da nota e o ícone do aplicativo são **azuis** de propósito. O amarelo aplicado
-sobre a superfície inteira de uma nota adesiva é marca registrada de terceiros, e há relato de
-acionamento contra versão *digital* de nota adesiva na mesma cor. O amarelo continua na paleta
-como uma das seis opções — o que ele não é mais é a identidade visual do app.
-
-Não é orientação jurídica; é distância barata de tomar.
-
 ## Ícone próprio na barra de tarefas
 
 ```bash

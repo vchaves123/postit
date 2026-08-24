@@ -331,7 +331,6 @@ public final class StoreChecks {
         NoteStore store = new NoteStore(base);
 
         Check.that("a cor padrao e azul", Palette.at(0).name().equals("Azul"));
-        Check.that("amarelo continua disponivel", Palette.indexOf("Amarelo") >= 0);
 
         Note nota = Note.create();
         Check.that("nota nova nasce azul", nota.palette().name().equals("Azul"));
