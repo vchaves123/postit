@@ -91,13 +91,12 @@ public final class HtmlChecks {
     }
 
     /**
-     * O marcador da lista tem de cair na primeira coluna do texto. O recuo padrao do Swing
-     * para {@code <ul>} e 50px: numa nota de 280px isso come um sexto da linha e joga o ponto
-     * para o meio do nada. A medida e feita no pixel pintado, e nao no CSS, porque e o pixel
-     * que o usuario ve.
+     * O recuo da lista e o escolhido, e nao o padrao do Swing -- que e 50px e, numa nota de
+     * 280px, come um sexto da linha e joga o marcador para o meio do nada. A medida e feita
+     * no pixel pintado, e nao no CSS, porque e o pixel que o usuario ve.
      */
     private static void recuoDaLista() throws Exception {
-        Check.grupo("HTML: o ponto da lista na primeira coluna");
+        Check.grupo("HTML: o recuo da lista");
         int[] medidas = new int[4]; // texto normal: x e pixel; item: x e pixel
         SwingUtilities.invokeAndWait(() -> {
             JTextPane pane = new JTextPane();
@@ -126,12 +125,14 @@ public final class HtmlChecks {
                 throw new IllegalStateException(e);
             }
         });
-        Check.that("o marcador cai na coluna do texto normal (" + medidas[3] + " contra "
-                + medidas[1] + ")", Math.abs(medidas[3] - medidas[1]) <= 3);
-        Check.that("o texto do item nao afasta mais que 10px (" + (medidas[2] - medidas[0]) + ")",
-                medidas[2] - medidas[0] <= 10);
-        Check.that("mas afasta o suficiente para se ler como lista",
-                medidas[2] - medidas[0] >= 4);
+        int marcador = medidas[3] - medidas[1];
+        int texto = medidas[2] - medidas[0];
+        Check.that("o marcador recua os 21px escolhidos, nao os 50 do padrao (" + marcador + ")",
+                marcador >= 15 && marcador <= 23);
+        Check.that("o texto do item acompanha o marcador (" + texto + ")",
+                texto >= 23 && texto <= 31);
+        Check.that("e sobra linha de texto util numa nota estreita",
+                Note.MIN_WIDTH - texto > 120);
     }
 
     /** A coluna do pixel pintado mais a esquerda naquela faixa de linhas. */
