@@ -58,7 +58,7 @@ $comum = @(
     '--name', 'Recados',
     '--app-version', $Version,
     '--vendor', 'vchaves123',
-    '--description', 'Notas adesivas na area de trabalho',
+    '--description', 'Recados - notas adesivas na area de trabalho',
     '--input', $stage,
     '--main-jar', 'recados.jar',
     '--main-class', 'com.recados.RecadosApp',

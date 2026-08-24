@@ -39,7 +39,7 @@ if (-not (Test-Path $jpackage)) { $jpackage = (Get-Command jpackage.exe).Source 
     --name Recados `
     --app-version 1.0.0 `
     --vendor 'vchaves123' `
-    --description 'Notas adesivas na area de trabalho' `
+    --description 'Recados - notas adesivas na area de trabalho' `
     --input $stage `
     --main-jar 'recados.jar' `
     --main-class 'com.recados.RecadosApp' `
