@@ -385,10 +385,21 @@ public final class NoteFrame extends JFrame {
             int removeTo = to < doc.getLength() && isBreak(doc, to) ? to + 1 : to;
 
             doc.remove(removeFrom, removeTo - removeFrom);
+
+            // Se as linhas convertidas eram um paragrafo inteiro -- e o que acontece com
+            // texto colado de fora, que chega como um <p> por linha --, sobra um paragrafo
+            // vazio no lugar. Trocar o elemento pela lista nao deixa esse resto; inserir no
+            // cursor deixaria uma linha em branco antes dela.
+            Element paragraph = doc.getParagraphElement(removeFrom);
+            if (paragraph.getEndOffset() - paragraph.getStartOffset() <= 1) {
+                doc.setOuterHTML(paragraph, list.toString());
+                scheduleSave();
+                return;
+            }
             textPane.setCaretPosition(removeFrom);
             applyStyle(new HTMLEditorKit.InsertHTMLTextAction("lista", list.toString(),
                     HTML.Tag.BODY, HTML.Tag.UL));
-        } catch (BadLocationException e) {
+        } catch (BadLocationException | IOException e) {
             System.err.println("Nao foi possivel transformar a selecao em lista: "
                     + e.getMessage());
         }

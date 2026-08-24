@@ -69,6 +69,13 @@ public final class HtmlChecks {
         String tudo = comLista(app, store, "um<br>dois", 0, 500);
         Check.that("Ctrl+A tambem funciona", contagem(tudo, "<li") == 2);
 
+        // Texto colado de fora (do Notepad, do navegador) nao chega com <br>: o Swing faz um
+        // <p> por linha. Convertendo, o paragrafo esvaziado nao pode ficar para tras -- ele
+        // virava uma linha em branco antes da lista.
+        String colado = comLista(app, store, "<p>um</p><p>dois</p><p>tres</p>", 0, 500);
+        Check.that("texto colado em paragrafos vira tres itens", contagem(colado, "<li") == 3);
+        Check.that("nao sobrou paragrafo vazio antes da lista", !colado.contains("<p"));
+
         String semSelecao = comLista(app, store, "um<br>dois", 3, 3);
         Check.that("sem selecao, insere um item vazio para digitar",
                 contagem(semSelecao, "<li") == 1);

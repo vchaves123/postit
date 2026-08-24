@@ -153,8 +153,10 @@ antes. Por isso o cursor é levado para o fim quando está em zero.
 Marcar o texto com o atributo `HTML.Tag.A` para criar link **não funciona**: o escritor emite
 `<a href><u><p-implied></u></a>`, sem o rótulo. O link precisa entrar como HTML, pelo parser.
 
-**`<br>` não cria parágrafo.** As linhas de uma nota ficam todas num parágrafo só (`p-implied`),
-separadas por `<br>` — quebrar por linha é quebrar no `<br>`, não iterar parágrafos. E o
+**Linha não é sempre a mesma coisa.** Texto digitado na nota vira `<br>` dentro de *um*
+parágrafo (`p-implied`); texto **colado** de fora vira um `<p>` por linha. As duas formas
+convivem na mesma nota, então quebrar por linha é considerar as duas — e, no caso do parágrafo,
+não deixar para trás o `<p>` que ficou vazio, senão sobra uma linha em branco. E o
 `HTMLDocument` guarda uma quebra própria no offset 0, então seleção que começa em zero (Ctrl+A)
 precisa pular essa primeira posição, senão a lista sai vazia.
 

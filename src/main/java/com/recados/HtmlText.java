@@ -113,8 +113,9 @@ final class HtmlText {
     /**
      * Onde uma linha termina e a outra comeca. Num documento do Swing as linhas de uma nota
      * costumam ser {@code <br>} dentro de <b>um</b> paragrafo -- e nao um paragrafo cada --,
-     * entao quebrar por linha e quebrar no {@code <br>}. O fecha-e-abre de paragrafo entra
-     * na conta para o caso de a nota ter recebido HTML colado de fora.
+     * entao quebrar por linha e quebrar no {@code <br>}. Mas texto <b>colado</b> de fora
+     * chega diferente: o Swing faz um {@code <p>} por linha. Os dois casos existem na mesma
+     * nota, e por isso os dois contam como fim de linha.
      */
     private static final Pattern LINE_BOUNDARY = Pattern.compile(
             "(?i)<br\\s*/?>|</p\\s*>\\s*<p[^>]*>|</p\\s*>|<p[^>]*>|</?div[^>]*>");
