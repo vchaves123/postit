@@ -53,6 +53,7 @@ import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicScrollBarUI;
+import javax.swing.undo.AbstractUndoableEdit;
 import javax.swing.undo.CompoundEdit;
 import javax.swing.undo.UndoManager;
 import java.util.ArrayList;
@@ -403,17 +404,76 @@ public final class NoteFrame extends JFrame {
     }
 
     /**
-     * Roda uma acao que mexe no documento mais de uma vez -- apagar a selecao e inserir no
-     * lugar, por exemplo -- como <b>um</b> passo de desfazer. Sem isto, virar uma lista
-     * precisaria de dois ou tres Ctrl+Z, e o meio do caminho seria um estado que o usuario
-     * nunca viu.
+     * Roda uma acao que reorganiza a estrutura do documento -- virar lista, quebrar item,
+     * limpar formatacao, inserir link -- como <b>um</b> passo de desfazer, guardando uma
+     * <b>foto</b> do HTML antes e depois em vez das edicoes que o Swing gerou pelo caminho.
+     *
+     * <p>A foto nao e capricho. As operacoes estruturais do {@code HTMLDocument}
+     * ({@code insertAfterEnd}, {@code removeElement}, {@code setOuterHTML}) empilham edicoes
+     * que nao voltam na ordem inversa: o Ctrl+Z estourava com {@code CannotUndoException} no
+     * meio do caminho e deixava o documento pela metade -- uma lista com um item que ja nao
+     * pertencia a ela. Com a arvore nesse estado, o calculo de linhas do Swing
+     * ({@code FlowView.layoutRow}) entrava em circulo, criava centenas de milhares de
+     * pedacos de linha e comia a interface junto com alguns GB de memoria. Foi assim que a
+     * janela "travava" depois de um ENTER dentro da lista seguido de Ctrl+Z.
+     *
+     * <p>Uma foto sempre volta, porque nao depende de a edicao ser reversivel. O preco e
+     * guardar o HTML da nota duas vezes por comando -- alguns KB, para um texto que cabe
+     * numa janelinha de recado.
      */
     private void asOneUndoStep(Runnable action) {
-        openUndoGroup();
-        try {
-            action.run();
-        } finally {
-            closeUndoGroup();
+        String antes = snapshot();
+        int caretAntes = textPane.getCaretPosition();
+        withoutUndo(action);
+        String depois = snapshot();
+        int caretDepois = textPane.getCaretPosition();
+        if (antes.equals(depois)) {
+            return; // comando que nao mudou nada nao merece um Ctrl+Z
+        }
+        closeUndoGroup();
+        undoManager.addEdit(new SnapshotEdit(antes, caretAntes, depois, caretDepois));
+    }
+
+    /** O documento inteiro em HTML, nunca vazio: nota sem texto ainda tem um paragrafo. */
+    private String snapshot() {
+        String html = htmlText();
+        return html.isBlank() ? "<html><body><p></p></body></html>" : html;
+    }
+
+    /** Repoe uma foto do documento, sem que a reposicao entre na pilha de desfazer. */
+    private void restoreSnapshot(String html, int caret) {
+        withoutUndo(() -> {
+            textPane.setText(html);
+            applyTypography();
+            textPane.setCaretPosition(Math.min(caret, textPane.getDocument().getLength()));
+        });
+    }
+
+    /** Um passo de desfazer que troca o documento inteiro pela foto do outro lado. */
+    private final class SnapshotEdit extends AbstractUndoableEdit {
+
+        private final String antes;
+        private final int caretAntes;
+        private final String depois;
+        private final int caretDepois;
+
+        SnapshotEdit(String antes, int caretAntes, String depois, int caretDepois) {
+            this.antes = antes;
+            this.caretAntes = caretAntes;
+            this.depois = depois;
+            this.caretDepois = caretDepois;
+        }
+
+        @Override
+        public void undo() {
+            super.undo();
+            restoreSnapshot(antes, caretAntes);
+        }
+
+        @Override
+        public void redo() {
+            super.redo();
+            restoreSnapshot(depois, caretDepois);
         }
     }
 
@@ -443,8 +503,7 @@ public final class NoteFrame extends JFrame {
             return;
         }
         // o proprio desfazer mexe no documento; gravar isso empilharia o desfazer do desfazer
-        withoutUndo(undoManager::undo);
-        scheduleSave();
+        withUndoSafety(() -> withoutUndo(undoManager::undo));
     }
 
     public void redo() {
@@ -452,7 +511,31 @@ public final class NoteFrame extends JFrame {
         if (!undoManager.canRedo()) {
             return;
         }
-        withoutUndo(undoManager::redo);
+        withUndoSafety(() -> withoutUndo(undoManager::redo));
+    }
+
+    /**
+     * Desfaz ou refaz com rede: se a operacao estourar no meio, o documento volta a como
+     * estava antes dela e a pilha e jogada fora.
+     *
+     * <p>Um desfazer pela metade nao e so um texto errado na tela -- ja custou a janela
+     * inteira: com a arvore de elementos inconsistente, o Swing entra em circulo calculando
+     * as linhas e come a memoria da maquina. Perder o historico e o preco barato; a rede
+     * existe para o caso que ainda nao conhecemos, ja que a foto do
+     * {@link #asOneUndoStep(Runnable)} resolveu os que conhecemos.
+     */
+    private void withUndoSafety(Runnable action) {
+        String rede = snapshot();
+        int caret = textPane.getCaretPosition();
+        try {
+            action.run();
+        } catch (RuntimeException e) { // inclui CannotUndoException e CannotRedoException
+            System.err.println("Desfazer falhou na nota " + note.id()
+                    + "; voltando ao estado anterior: " + e);
+            Trace.linha("!! desfazer estourou, repondo a rede: " + e);
+            restoreSnapshot(rede, caret);
+            undoManager.discardAllEdits();
+        }
         scheduleSave();
     }
 
@@ -1000,6 +1083,11 @@ public final class NoteFrame extends JFrame {
     public boolean caretInsideList() {
         return textPane.getDocument() instanceof HTMLDocument doc
                 && enclosing(doc, textPane.getCaretPosition(), HTML.Tag.LI) != null;
+    }
+
+    /** O documento em HTML, o mesmo que vai para o disco. Publico para as checagens. */
+    public String htmlAtual() {
+        return htmlText();
     }
 
     /** Liga e desliga o negrito, como o botao B. Publico para as checagens. */

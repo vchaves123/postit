@@ -5,6 +5,7 @@ import com.recados.NoteStore;
 import com.recados.RecadosApp;
 import com.recados.Trace;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -24,6 +25,7 @@ public final class WindowChecks {
         barraDeRolagem();
         zoomDeTextoEJanela();
         diarioDeBordo();
+        listaComEnterEDesfazer();
     }
 
     /**
@@ -382,6 +384,112 @@ public final class WindowChecks {
         Check.that("desfez", !frame.note().text().contains("mais texto"));
         SwingUtilities.invokeAndWait(frame::discard);
     }
+    /**
+     * A sessao inteira que travava a janela, refeita passo a passo: lista feita a partir de
+     * tres linhas, desfazer, refazer, ENTER no fim do ultimo item, ENTER no item vazio que
+     * isso cria, e Ctrl+Z.
+     *
+     * <p>Antes da correcao o ultimo Ctrl+Z estourava com {@code CannotUndoException} no meio
+     * do caminho e deixava a arvore do documento pela metade; o Swing entao entrava em
+     * circulo calculando as linhas e comia a interface e alguns GB. Cada passo aqui pinta a
+     * janela de verdade, porque e a pintura que dispara esse calculo -- checar so o HTML
+     * deixaria o travamento passar batido.
+     */
+    private static void listaComEnterEDesfazer() throws Exception {
+        Check.grupo("Lista, ENTER e Ctrl+Z sem quebrar o documento");
+        Thread vigia = vigiaDeTravamento(60_000);
+
+        Note nota = Note.create();
+        Path base = Files.createTempDirectory("recados-undo");
+        RecadosApp app = new RecadosApp(new NoteStore(base));
+        NoteFrame frame = abrir(nota, app);
+
+        SwingUtilities.invokeAndWait(() -> {
+            frame.type("Isso eh  um teste");
+            frame.select(1, 18);
+            frame.applyBold();
+            frame.select(18, 18);
+            frame.pressEnter();
+            frame.type("Lista 1");
+            frame.pressEnter();
+            frame.type("LIsta 2");
+            frame.pressEnter();
+            frame.type("LIsta 3");
+            frame.select(19, 42);
+            frame.insertList();
+        });
+        pintar(frame);
+        Check.that("as tres linhas viraram lista", frame.htmlAtual().contains("<ul>"));
+
+        SwingUtilities.invokeAndWait(frame::undo);
+        pintar(frame);
+        Check.that("desfazer desmontou a lista", !frame.htmlAtual().contains("<ul>"));
+
+        SwingUtilities.invokeAndWait(frame::redo);
+        pintar(frame);
+        Check.that("refazer trouxe a lista de volta", frame.htmlAtual().contains("<ul>"));
+
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(42, 42);
+            frame.pressEnter();   // item novo, vazio, depois do ultimo
+        });
+        pintar(frame);
+        SwingUtilities.invokeAndWait(frame::pressEnter); // item vazio + ENTER = sai da lista
+        pintar(frame);
+
+        SwingUtilities.invokeAndWait(frame::undo);
+        pintar(frame);
+        SwingUtilities.invokeAndWait(frame::undo);
+        pintar(frame);
+
+        SwingUtilities.invokeAndWait(frame::flush);
+        String texto = frame.note().text();
+        Check.that("o texto sobreviveu aos desfazeres",
+                texto.contains("Lista 1") && texto.contains("LIsta 2") && texto.contains("LIsta 3"));
+        Check.that("e o titulo tambem", texto.contains("um teste"));
+
+        SwingUtilities.invokeAndWait(frame::discard);
+        vigia.interrupt();
+    }
+
+    /** Pinta a janela num quadro fora da tela: e o que forca o calculo de linhas. */
+    private static void pintar(NoteFrame frame) throws Exception {
+        BufferedImage quadro = new BufferedImage(Math.max(frame.getWidth(), 10),
+                Math.max(frame.getHeight(), 10), BufferedImage.TYPE_INT_ARGB);
+        SwingUtilities.invokeAndWait(() -> {
+            frame.validate();
+            frame.paint(quadro.createGraphics());
+        });
+    }
+
+    /**
+     * Se o travamento voltar, a checagem ficaria pendurada para sempre e ninguem saberia por
+     * que. Este vigia derruba o processo com a pilha da EDT, que e a informacao que interessa.
+     */
+    private static Thread vigiaDeTravamento(long limite) {
+        Thread vigia = new Thread(() -> {
+            try {
+                Thread.sleep(limite);
+            } catch (InterruptedException e) {
+                return; // a checagem terminou a tempo
+            }
+            System.out.println("  FALHOU  a janela travou (passou de " + limite + "ms)");
+            Thread.getAllStackTraces().forEach((t, pilha) -> {
+                if (!t.getName().startsWith("AWT-EventQueue")) {
+                    return;
+                }
+                System.out.println("    " + t.getName() + " " + t.getState());
+                for (int i = 0; i < Math.min(pilha.length, 8); i++) {
+                    System.out.println("      " + pilha[i]);
+                }
+            });
+            Runtime.getRuntime().halt(1);
+        }, "vigia-checagem");
+        vigia.setDaemon(true);
+        vigia.start();
+        return vigia;
+    }
+
     private static NoteFrame abrir(Note nota, RecadosApp app) throws Exception {
         NoteFrame[] frame = new NoteFrame[1];
         SwingUtilities.invokeAndWait(() -> {
