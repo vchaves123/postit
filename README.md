@@ -302,7 +302,7 @@ checagens nunca tocam as suas notas.
 
 Cobrem o formato do arquivo HTML e seus metadados, a pasta de minimizadas, a lixeira e a
 restauração, nota em branco apagando direto, a conversão do formato `.properties`, a migração
-de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem minimizar, apagar sem ressuscitar, a barra
+minimizar sem apagar, `WM_CLOSE` sem minimizar, apagar sem ressuscitar, a barra
 de formatação (aparece com o foco, não rouba o foco, e cabe na nota mais estreita), desfazer e
 refazer, a tecla ENTER (parágrafo, item de lista, e sair da lista), limpar formatação
 desmontando listas, zoom de texto e janela, a fonte monoespacada no trecho, a barra de rolagem com

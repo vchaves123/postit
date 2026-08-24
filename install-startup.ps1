@@ -49,7 +49,6 @@ $startup = [Environment]::GetFolderPath('Startup')
 $link = Join-Path $startup 'recados.lnk'
 
 # limpa o atalho do nome antigo, para nao sobrar dois na Inicializar
-Remove-Item (Join-Path $startup 'postit.lnk') -Force -ErrorAction SilentlyContinue
 
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($link)

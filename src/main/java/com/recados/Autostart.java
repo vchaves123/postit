@@ -96,26 +96,6 @@ public final class Autostart {
     }
 
     /**
-     * Remove o atalho com o nome antigo, de quando o projeto se chamava postit. Sem isso
-     * ele continuaria na Inicializar apontando para um jar que nao existe mais, e o login
-     * abriria um erro de "jar nao encontrado".
-     */
-    public static void removeLegacyLink() {
-        if (!isWindows()) {
-            return;
-        }
-        Path legacy = startupDir().resolve("postit.lnk");
-        try {
-            if (Files.deleteIfExists(legacy)) {
-                System.out.println("Atalho antigo removido: " + legacy);
-            }
-        } catch (IOException e) {
-            System.err.println("Nao foi possivel remover o atalho antigo " + legacy
-                    + ": " + e.getMessage());
-        }
-    }
-
-    /**
      * Aplica a mudanca e confere no disco -- se nao pegou, o usuario fica sabendo agora
      * em vez de descobrir no proximo login.
      */

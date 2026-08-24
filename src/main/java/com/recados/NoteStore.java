@@ -62,26 +62,8 @@ public final class NoteStore {
         this(defaultBaseDir());
     }
 
-    /**
-     * {@code ~/.recados}, migrando de {@code ~/.postit} na primeira execucao depois da
-     * troca de nome do projeto. Se a migracao falhar, continua usando a pasta antiga:
-     * comecar de uma pasta vazia pareceria que as notas sumiram.
-     */
     private static Path defaultBaseDir() {
-        Path home = Path.of(System.getProperty("user.home"));
-        Path base = home.resolve(".recados");
-        Path legacy = home.resolve(".postit");
-        if (!Files.exists(base) && Files.isDirectory(legacy)) {
-            try {
-                Files.move(legacy, base);
-                System.out.println("Notas migradas de " + legacy + " para " + base);
-            } catch (IOException e) {
-                System.err.println("Nao foi possivel migrar " + legacy + " para " + base
-                        + " (" + e.getMessage() + "); seguindo com a pasta antiga.");
-                return legacy;
-            }
-        }
-        return base;
+        return Path.of(System.getProperty("user.home")).resolve(".recados");
     }
 
     public NoteStore(Path baseDir) {

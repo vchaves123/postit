@@ -65,7 +65,6 @@ public final class RecadosApp implements NoteFrame.Host {
     }
 
     private void start() {
-        Autostart.removeLegacyLink();
         List<Note> loaded = store.loadAll();
         if (loaded.isEmpty()) {
             loaded = List.of(welcomeNote());

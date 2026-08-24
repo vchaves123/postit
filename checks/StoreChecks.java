@@ -15,7 +15,6 @@ public final class StoreChecks {
         gravacaoQueFalha();
         lixeira();
         emBranco();
-        migracao();
         cores();
     }
 
@@ -320,51 +319,6 @@ public final class StoreChecks {
         store.save(comTexto);
         Check.that("nota com conteudo vai para a lixeira", store.delete(comTexto));
         Check.that("e esta la", store.trashHasNotes());
-    }
-
-    private static void migracao() throws Exception {
-        Check.grupo("Migracao de ~/.postit para ~/.recados");
-        Path home = Files.createTempDirectory("recados-home");
-        Path antiga = home.resolve(".postit");
-        Path nova = home.resolve(".recados");
-
-        NoteStore legado = new NoteStore(antiga);
-        Note nota = Note.create();
-        nota.text("nota de antes da renomeacao");
-        legado.save(nota);
-        Note apagada = Note.create();
-        apagada.text("essa estava na lixeira");
-        legado.save(apagada);
-        legado.delete(apagada);
-
-        String homeOriginal = System.getProperty("user.home");
-        try {
-            System.setProperty("user.home", home.toString());
-            NoteStore store = new NoteStore();
-            List<Note> notas = store.loadAll();
-
-            Check.that("pasta nova existe", Files.isDirectory(nova));
-            Check.that("pasta antiga sumiu", !Files.exists(antiga));
-            Check.that("store aponta para a nova", store.baseDir().equals(nova));
-            Check.that("a nota veio junto", notas.size() == 1);
-            Check.that("texto intacto", notas.size() == 1
-                    && notas.get(0).text().equals("nota de antes da renomeacao"));
-            Check.that("lixeira veio junto", store.trashHasNotes());
-
-            Check.that("segunda execucao continua na nova",
-                    new NoteStore().baseDir().equals(nova));
-
-            // com as duas pastas, a nova manda e a antiga fica intocada
-            Files.createDirectories(antiga.resolve("notes"));
-            Path intruso = antiga.resolve("notes").resolve("naodevecarregar.html");
-            Files.writeString(intruso, "<html><body>nao deveria aparecer</body></html>");
-            NoteStore terceira = new NoteStore();
-            Check.that("com as duas, usa a nova", terceira.baseDir().equals(nova));
-            Check.that("nao puxou nota da antiga", terceira.loadAll().size() == 1);
-            Check.that("antiga preservada", Files.exists(intruso));
-        } finally {
-            System.setProperty("user.home", homeOriginal);
-        }
     }
 
     /**
