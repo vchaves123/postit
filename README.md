@@ -314,6 +314,43 @@ maven-surefire como `PDM:Trojan.Win32.Generic`, então `mvn test` nunca chega a 
 checagens são classes Java comuns, compiladas contra o jar e executadas direto — sem
 dependência de teste no `pom.xml` e sem depender de um processo que o antivírus mata.
 
+## Diário de bordo (para reproduzir um problema)
+
+Quando algo trava ou se comporta mal e é difícil descrever o que foi feito, rode o Recados com
+o diário ligado:
+
+```bash
+powershell -ExecutionPolicy Bypass -File rodar-com-trace.ps1
+```
+
+Use o programa normalmente até o problema aparecer, feche-o (bandeja → **Sair**, ou `Ctrl+Q`) e
+mande o arquivo cujo caminho o script imprime — por padrão `~\.recados\trace\trace-<data>.log`.
+Com `-Acompanhar`, uma segunda janela mostra o log crescendo em tempo real.
+
+O que entra no arquivo:
+
+- **cada tecla e cada clique**, com o componente em que caiu — o nome do botão da barra vem da
+  própria dica dele, então dá para ver qual ícone foi apertado;
+- **cada comando**, em par: `> tecla control Z  nota=… cursor=17 sel=[3,20) tamanho=42` e, na
+  volta, quanto demorou e o **HTML resultante**. Junto com a linha `ABRIU` (o conteúdo da nota
+  ao abrir), isso é o bastante para repetir a sequência inteira aqui;
+- **a pilha das threads quando a tela congela**. Um vigia em thread própria pergunta à interface
+  "você ainda responde?" quatro vezes por segundo; depois de 2 segundos sem resposta, fotografa
+  a pilha de todas as threads e o consumo de memória, e refotografa a cada 3 segundos enquanto
+  continuar travada. Uma foto só não distingue "está lento" de "está em círculo" — várias sim.
+
+O vigia mora fora da EDT de propósito: o travamento que motivou tudo isto come justamente a
+EDT, e qualquer diagnóstico que dependesse dela congelaria junto.
+
+**Desligado por padrão.** Sem `-Drecados.trace`, `Trace` é um `if` que volta: o pacote que vai
+para o usuário não grava nada, não abre arquivo nenhum e não fica com uma thread extra. Uma
+checagem garante isso a cada build — trace esquecido ligado gravaria cada tecla do usuário.
+
+Para ligar no aplicativo **já instalado**, o lançador do jpackage não aceita `-D` na linha de
+comando: as opções da JVM vêm do arquivo `app\Recados.cfg`, ao lado do `Recados.exe` (a
+instalação é por usuário, em `%LOCALAPPDATA%\Recados`). Acrescente uma linha
+`java-options=-Drecados.trace` na seção `[JavaOptions]` e reabra o programa.
+
 ## Dois monitores com escalas diferentes
 
 Os lançadores passam `-Dsun.java2d.uiScale=1`, que mantém **uma escala só** em todos os

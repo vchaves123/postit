@@ -3,6 +3,7 @@ import com.recados.Palette;
 import com.recados.NoteFrame;
 import com.recados.NoteStore;
 import com.recados.RecadosApp;
+import com.recados.Trace;
 import java.awt.event.WindowEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ public final class WindowChecks {
         gravacaoTentaDeNovo();
         barraDeRolagem();
         zoomDeTextoEJanela();
+        diarioDeBordo();
     }
 
     /**
@@ -352,6 +354,34 @@ public final class WindowChecks {
         Check.that("nao aparece ao recarregar", new NoteStore(base).loadAll().isEmpty());
     }
 
+
+    /**
+     * O diario de bordo nasce desligado e nao muda o comportamento de nada. Sem esta
+     * checagem, o risco e sutil: um dia alguem liga o trace "so para testar", esquece, e o
+     * aplicativo do usuario passa a gravar cada tecla num arquivo -- em cima das notas dele.
+     */
+    private static void diarioDeBordo() throws Exception {
+        Check.grupo("Diario de bordo desligado por padrao");
+        Check.that("desligado sem a propriedade", !Trace.ligado());
+        Check.that("nao abriu arquivo nenhum", Trace.arquivo() == null);
+
+        boolean[] rodou = {false};
+        Trace.comando("teste", "sem estado", () -> rodou[0] = true, () -> "");
+        Check.that("desligado, o comando roda assim mesmo", rodou[0]);
+
+        Note nota = Note.create();
+        nota.text("com o diario desligado");
+        Path base = Files.createTempDirectory("recados-trace");
+        RecadosApp app = new RecadosApp(new NoteStore(base));
+        NoteFrame frame = abrir(nota, app);
+        SwingUtilities.invokeAndWait(() -> frame.type(" mais texto"));
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("digitou", frame.note().text().contains("mais texto"));
+        SwingUtilities.invokeAndWait(frame::undo);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("desfez", !frame.note().text().contains("mais texto"));
+        SwingUtilities.invokeAndWait(frame::discard);
+    }
     private static NoteFrame abrir(Note nota, RecadosApp app) throws Exception {
         NoteFrame[] frame = new NoteFrame[1];
         SwingUtilities.invokeAndWait(() -> {

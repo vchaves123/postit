@@ -53,6 +53,7 @@ public final class RecadosApp implements NoteFrame.Host {
     }
 
     public static void main(String[] args) {
+        Trace.instalar();
         NoteStore store = new NoteStore();
         if (!acquireSingleInstanceLock(store.baseDir())) {
             System.out.println("Recados ja esta em execucao.");

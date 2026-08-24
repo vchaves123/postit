@@ -175,6 +175,9 @@ public final class NoteFrame extends JFrame {
 
     public NoteFrame(Note note, Host host) {
         super("Recados");
+        // idempotente: a nota pode nascer pelo aplicativo ou por uma checagem, e as duas
+        // portas de entrada precisam do diario ligado quando -Drecados.trace estiver posto
+        Trace.instalar();
         this.note = note;
         this.host = host;
         this.saveTimer = new Timer(SAVE_DELAY_MS, e -> flush());
@@ -221,12 +224,14 @@ public final class NoteFrame extends JFrame {
 
         JPanel buttons = new JPanel();
         buttons.setOpaque(false);
-        buttons.add(new GlyphButton(Glyph.PLUS, "Nova nota (Ctrl+N)", () -> host.newNote(this)));
-        buttons.add(new GlyphButton(Glyph.COLOR, "Trocar a cor (Ctrl+E)", this::cycleColor));
+        buttons.add(new GlyphButton(Glyph.PLUS, "Nova nota (Ctrl+N)",
+                traced("botao PLUS", () -> host.newNote(this))));
+        buttons.add(new GlyphButton(Glyph.COLOR, "Trocar a cor (Ctrl+E)",
+                traced("botao COLOR", this::cycleColor)));
         buttons.add(pinButton);
         buttons.add(new GlyphButton(Glyph.MINIMIZE,
                 "Minimizar esta nota (Ctrl+W) -- nao apaga, volta pela bandeja",
-                () -> host.closeNote(this)));
+                traced("botao MINIMIZE", () -> host.closeNote(this))));
         header.add(buttons, BorderLayout.EAST);
 
         DragSupport drag = new DragSupport();
@@ -314,7 +319,7 @@ public final class NoteFrame extends JFrame {
         // razao de a largura minima da nota ser 180, e nao 160.
         formatBar.add(new GlyphButton(Glyph.MONOSPACED,
                 "Fonte monoespacada na selecao -- sem selecao, na nota toda",
-                this::toggleMonospaced, GlyphButton.SMALL_SIZE + 4));
+                traced("botao MONOSPACED", this::toggleMonospaced), GlyphButton.SMALL_SIZE + 4));
         formatButton(Glyph.LIST, "Lista com marcadores -- cada linha selecionada vira um item",
                 this::insertList);
         formatButton(Glyph.NUMBERED_LIST,
@@ -327,7 +332,8 @@ public final class NoteFrame extends JFrame {
     }
 
     private void formatButton(Glyph glyph, String tooltip, Runnable action) {
-        formatBar.add(new GlyphButton(glyph, tooltip, action, GlyphButton.SMALL_SIZE));
+        formatBar.add(new GlyphButton(glyph, tooltip,
+                traced("botao " + glyph, action), GlyphButton.SMALL_SIZE));
     }
 
     /** Se a barra de formatacao esta na tela. Usado tambem pelas checagens. */
@@ -510,6 +516,12 @@ public final class NoteFrame extends JFrame {
             applyTypography();
         });
         undoManager.discardAllEdits();
+        // o ponto de partida do diario: sem o conteudo de abertura, os passos seguintes nao
+        // se repetem, porque nao se sabe sobre o que eles agiram
+        if (Trace.ligado()) {
+            Trace.linha("ABRIU nota=" + note.id() + " " + note.width() + "x" + note.height()
+                    + " conteudo=" + conteudo);
+        }
     }
 
     /**
@@ -937,7 +949,21 @@ public final class NoteFrame extends JFrame {
     private void bindStyle(String keyStroke, Action action) {
         String name = "recados-estilo:" + keyStroke;
         textPane.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(keyStroke), name);
-        textPane.getActionMap().put(name, action);
+        textPane.getActionMap().put(name, traced(keyStroke, action));
+    }
+
+    /** A mesma embalagem do diario de bordo, para as acoes do editor. */
+    private Action traced(String nome, Action action) {
+        if (!Trace.ligado()) {
+            return action;
+        }
+        return new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Trace.comando("tecla " + nome, cursorState(),
+                        () -> action.actionPerformed(e), NoteFrame.this::htmlText);
+            }
+        };
     }
 
     /** Dispara uma acao de estilo como se tivesse vindo do teclado. */
@@ -974,6 +1000,11 @@ public final class NoteFrame extends JFrame {
     public boolean caretInsideList() {
         return textPane.getDocument() instanceof HTMLDocument doc
                 && enclosing(doc, textPane.getCaretPosition(), HTML.Tag.LI) != null;
+    }
+
+    /** Liga e desliga o negrito, como o botao B. Publico para as checagens. */
+    public void applyBold() {
+        applyStyle(new StyledEditorKit.BoldAction());
     }
 
     /**
@@ -1383,9 +1414,34 @@ public final class NoteFrame extends JFrame {
         getRootPane().getActionMap().put(name, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                action.run();
+                traced("tecla " + keyStroke, action).run();
             }
         });
+    }
+
+    /**
+     * Embrulha uma acao no diario de bordo: o que foi acionado, com o cursor onde, e como o
+     * HTML ficou depois. Sem {@code -Drecados.trace} isto e a propria acao, sem desvio.
+     *
+     * <p>Vale a pena passar <i>todas</i> as acoes por aqui, e nao so as suspeitas: o
+     * travamento que estamos atras aparece depois de uma sequencia de passos, e um diario
+     * com buracos nao permite repetir a sequencia.
+     */
+    private Runnable traced(String nome, Runnable acao) {
+        if (!Trace.ligado()) {
+            return acao;
+        }
+        return () -> Trace.comando(nome, cursorState(), acao, this::htmlText);
+    }
+
+    /** Onde esta o cursor e o que esta selecionado, para o diario. */
+    private String cursorState() {
+        Document doc = textPane.getDocument();
+        int inicio = textPane.getSelectionStart();
+        int fim = textPane.getSelectionEnd();
+        String sel = inicio == fim ? "" : " sel=[" + inicio + "," + fim + ")";
+        return "nota=" + note.id() + " cursor=" + textPane.getCaretPosition() + sel
+                + " tamanho=" + doc.getLength();
     }
 
     private void installGeometryTracking() {
@@ -1746,6 +1802,12 @@ public final class NoteFrame extends JFrame {
         }
         note.text(plainText());
         note.html(htmlText());
+        // a gravacao e o unico momento em que o HTML aparece depois de uma digitacao comum
+        // (que nao passa por comando nenhum) -- sem esta linha o diario pula esse trecho
+        if (Trace.ligado()) {
+            Trace.linha("SALVOU " + cursorState() + " html="
+                    + note.html().replace("\r", "").replace("\n", "\\n"));
+        }
         if (host.saveNote(note)) {
             failedSaves = 0;
             return;
