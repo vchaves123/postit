@@ -115,6 +115,11 @@ O documento é **HTML**, e a formatação fica numa **barra de ícones no rodap�
 | dois elos de corrente | inserir link — a seleção vira o rótulo; sem seleção, o endereço | menu Formatar |
 | borracha | limpar formatação (na seleção, ou na nota toda) | menu Formatar |
 
+O **recuo da lista é curto de propósito**: o marcador cai na primeira coluna do texto, e o texto
+do item fica 7 px à direita. O padrão do Swing para `<ul>` é 50 px — numa nota de 280 px isso
+come um sexto da linha e joga o ponto para o meio do nada. O valor foi medido no pixel pintado,
+não escolhido no olho, e uma checagem trava a medida.
+
 Abrir um link é **Ctrl+clique**. Copiar a nota com formatação continua no menu **Formatar** do
 clique direito, junto de tudo o que está na barra — é ação da nota inteira, não da seleção, e
 tirá-la da barra é o que faz os seis ícones caberem na nota mais estreita (160 px).

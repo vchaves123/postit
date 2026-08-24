@@ -185,7 +185,7 @@ public final class NoteFrame extends JFrame {
     }
 
     private JComponent buildBody() {
-        textPane.setEditorKit(buildHtmlKit()); // troca o documento: tem de vir antes do resto
+        textPane.setEditorKit(htmlKit()); // troca o documento: tem de vir antes do resto
         textPane.setOpaque(false);
         textPane.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         installStyleShortcuts();
@@ -277,14 +277,22 @@ public final class NoteFrame extends JFrame {
     /**
      * Monta o editor em HTML. E o formato do documento porque e o que o Windows aceita ao
      * colar em e-mail e navegador, e o que da listas e links quase de graca.
+     *
+     * <p>Publico e estatico para as checagens medirem o recuo da lista com o mesmo CSS que
+     * a nota usa -- se fosse copia, a medida deixaria de valer no dia em que o CSS mudasse.
      */
-    private HTMLEditorKit buildHtmlKit() {
+    public static HTMLEditorKit htmlKit() {
         HTMLEditorKit kit = new HTMLEditorKit();
         StyleSheet css = kit.getStyleSheet();
         // a fonte da nota vem daqui: num documento HTML o setFont do JTextPane nao manda
         css.addRule("body { font-family: 'Segoe UI', sans-serif; font-size: 11pt; margin: 0; }");
         css.addRule("p { margin: 0; }");
-        css.addRule("ul, ol { margin-top: 0; margin-bottom: 0; }");
+        // O recuo padrao do Swing para lista e 50px, o que numa nota de 280px de largura come
+        // um sexto da linha e joga o marcador para o meio do nada. Com 6px o ponto cai na
+        // primeira coluna do texto -- medido: marcador em x=9 contra texto normal em x=10 --
+        // e o texto do item fica 7px a direita, o suficiente para se ler como lista.
+        css.addRule("ul, ol { margin-top: 0; margin-bottom: 0; margin-left: 6px;"
+                + " padding-left: 0; }");
         css.addRule("a { text-decoration: underline; }");
         return kit;
     }

@@ -2,6 +2,10 @@ import com.recados.Note;
 import com.recados.NoteFrame;
 import com.recados.NoteStore;
 import com.recados.RecadosApp;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -10,7 +14,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -23,6 +29,7 @@ public final class HtmlChecks {
         idaEVolta();
         listasELinks();
         listaDaSelecao();
+        recuoDaLista();
         colagemFormatada();
         notasAntigas();
     }
@@ -81,6 +88,62 @@ public final class HtmlChecks {
                 contagem(semSelecao, "<li") == 1);
         Check.that("sem selecao, o texto continua la",
                 semSelecao.contains("um") && semSelecao.contains("dois"));
+    }
+
+    /**
+     * O marcador da lista tem de cair na primeira coluna do texto. O recuo padrao do Swing
+     * para {@code <ul>} e 50px: numa nota de 280px isso come um sexto da linha e joga o ponto
+     * para o meio do nada. A medida e feita no pixel pintado, e nao no CSS, porque e o pixel
+     * que o usuario ve.
+     */
+    private static void recuoDaLista() throws Exception {
+        Check.grupo("HTML: o ponto da lista na primeira coluna");
+        int[] medidas = new int[4]; // texto normal: x e pixel; item: x e pixel
+        SwingUtilities.invokeAndWait(() -> {
+            JTextPane pane = new JTextPane();
+            pane.setEditorKit(NoteFrame.htmlKit()); // o CSS de verdade da nota
+            pane.setBackground(Color.WHITE);
+            pane.setForeground(Color.BLACK);
+            pane.setText("<html><body>normal<ul><li>item</li></ul></body></html>");
+            pane.setSize(280, 160);
+            pane.doLayout();
+
+            BufferedImage img = new BufferedImage(280, 160, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = img.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, 280, 160);
+            pane.paint(g);
+            g.dispose();
+            try {
+                String texto = pane.getDocument().getText(0, pane.getDocument().getLength());
+                Rectangle2D normal = pane.modelToView2D(texto.indexOf("normal"));
+                Rectangle2D item = pane.modelToView2D(texto.indexOf("item"));
+                medidas[0] = (int) normal.getX();
+                medidas[1] = primeiroPixel(img, (int) normal.getY(), (int) normal.getMaxY());
+                medidas[2] = (int) item.getX();
+                medidas[3] = primeiroPixel(img, (int) item.getY(), (int) item.getMaxY());
+            } catch (BadLocationException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        Check.that("o marcador cai na coluna do texto normal (" + medidas[3] + " contra "
+                + medidas[1] + ")", Math.abs(medidas[3] - medidas[1]) <= 3);
+        Check.that("o texto do item nao afasta mais que 10px (" + (medidas[2] - medidas[0]) + ")",
+                medidas[2] - medidas[0] <= 10);
+        Check.that("mas afasta o suficiente para se ler como lista",
+                medidas[2] - medidas[0] >= 4);
+    }
+
+    /** A coluna do pixel pintado mais a esquerda naquela faixa de linhas. */
+    private static int primeiroPixel(BufferedImage img, int topo, int base) {
+        for (int x = 0; x < img.getWidth(); x++) {
+            for (int y = Math.max(0, topo); y < Math.min(img.getHeight(), base + 1); y++) {
+                if ((img.getRGB(x, y) & 0xFFFFFF) != 0xFFFFFF) {
+                    return x;
+                }
+            }
+        }
+        return -1;
     }
 
     /** Abre uma nota com este corpo, seleciona o trecho, aciona a lista e devolve o HTML. */
