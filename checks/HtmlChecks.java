@@ -31,8 +31,157 @@ public final class HtmlChecks {
         listaDaSelecao();
         recuoDaLista();
         desfazer();
+        teclaEnter();
+        limparFormatacao();
+        fonteMonoespacada();
         colagemFormatada();
         notasAntigas();
+    }
+
+    /**
+     * A tecla ENTER. O que ela fazia antes: inseria um {@code "\n"} cru, que em HTML e espaco
+     * em branco -- ou seja, <b>nada aparecia</b>. A causa nao estava na tecla: o
+     * {@code insert-break} do Swing divide o paragrafo onde o cursor esta, e o texto da nota
+     * morava fora de qualquer {@code <p>} (o Swing chama isso de {@code p-implied}). A
+     * correcao foi o conteudo passar a morar em paragrafos de verdade.
+     */
+    private static void teclaEnter() throws Exception {
+        Check.grupo("A tecla ENTER");
+        Path base = Files.createTempDirectory("recados-enter");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        // nota que chega com <br>, como toda nota digitada e toda nota de versao anterior
+        Note nota = Note.create();
+        nota.html("<html><body>primeira linha<br>segunda linha</body></html>");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("o conteudo solto virou paragrafo", nota.html().toLowerCase().contains("<p"));
+        Check.that("e as linhas continuam sendo duas",
+                nota.text().contains("primeira linha") && nota.text().contains("segunda linha"));
+
+        int antes = contagem(nota.html().toLowerCase(), "<p");
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(5, 5); // cursor no meio da primeira linha
+            frame.pressEnter();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("ENTER criou um paragrafo novo",
+                contagem(nota.html().toLowerCase(), "<p") == antes + 1);
+
+        // O escritor do Swing as vezes devolve <html><head>..</head>conteudo</html>, sem
+        // <body> nenhum; se isso for tratado como "o corpo", o arquivo fica com um <html>
+        // dentro do <body> -- HTML torto, e o navegador mostra o que der.
+        String arquivo = Files.readString(
+                base.resolve("notes").resolve(nota.id() + ".html")).toLowerCase();
+        Check.that("o arquivo tem um <html> so", contagem(arquivo, "<html") == 1);
+        Check.that("e o body nao tem documento dentro",
+                !arquivo.substring(arquivo.indexOf("<body")).contains("<html"));
+        Check.that("e nao tem cabecalho dentro do body",
+                !arquivo.substring(arquivo.indexOf("<body")).contains("<head"));
+
+        SwingUtilities.invokeAndWait(frame::dispose);
+
+        // dentro de lista, ENTER cria o item seguinte
+        Note comLista = Note.create();
+        comLista.html("<html><body><ul><li>um</li><li>dois</li></ul></body></html>");
+        store.save(comLista);
+        NoteFrame naLista = abrir(comLista, app);
+        SwingUtilities.invokeAndWait(() -> {
+            naLista.select(3, 3); // fim do primeiro item
+            naLista.pressEnter();
+        });
+        SwingUtilities.invokeAndWait(naLista::flush);
+        Check.that("ENTER na lista criou um item, nao um paragrafo",
+                contagem(comLista.html().toLowerCase(), "<li") == 3);
+        Check.that("a lista continua sendo uma so",
+                contagem(comLista.html().toLowerCase(), "<ul") == 1);
+        Check.that("e o cursor ficou dentro da lista", naLista.caretInsideList());
+
+        // ENTER no item vazio sai da lista -- sem isso nao ha como terminar uma lista
+        // sem usar o mouse
+        SwingUtilities.invokeAndWait(naLista::pressEnter);
+        SwingUtilities.invokeAndWait(naLista::flush);
+        Check.that("ENTER no item vazio tirou o item",
+                contagem(comLista.html().toLowerCase(), "<li") == 2);
+        Check.that("e o cursor saiu da lista", !naLista.caretInsideList());
+
+        SwingUtilities.invokeAndWait(naLista::dispose);
+    }
+
+    /**
+     * Limpar formatacao desmonta a lista: item volta a ser linha de texto. O link fica --
+     * link nao e decoracao, e conteudo, e perder o endereco seria perder informacao que nao
+     * esta em outro lugar.
+     */
+    private static void limparFormatacao() throws Exception {
+        Check.grupo("Limpar formatacao desmonta a lista");
+        Path base = Files.createTempDirectory("recados-limpar");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.html("<html><body><ul><li><b>um</b></li><li>dois</li></ul>"
+                + "<p>fora da lista</p></body></html>");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(0, 0); // sem selecao: vale a nota toda
+            frame.clearFormatting();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        String html = semCor(nota.html().toLowerCase());
+        Check.that("a lista virou texto", !html.contains("<ul") && !html.contains("<li"));
+        Check.that("o negrito saiu", !html.contains("<b>"));
+        Check.that("o texto dos itens ficou", nota.text().contains("um")
+                && nota.text().contains("dois") && nota.text().contains("fora da lista"));
+        Check.that("cada item virou uma linha",
+                contagem(html, "<p") >= 3);
+
+        SwingUtilities.invokeAndWait(frame::dispose);
+
+        // Com selecao dentro da lista, a lista inteira e desmontada -- e o que estava fora
+        // dela fica intacto. A primeira versao removia o texto selecionado e enfiava as
+        // linhas DENTRO do <li> que sobrava: o marcador do primeiro item continuava na tela e
+        // as linhas saiam indentadas.
+        Note comSelecao = Note.create();
+        comSelecao.html("<html><body><p>antes</p><ol><li>um</li><li>dois</li><li>tres</li></ol>"
+                + "<p><b>depois</b></p></body></html>");
+        store.save(comSelecao);
+        NoteFrame naSelecao = abrir(comSelecao, app);
+        SwingUtilities.invokeAndWait(() -> {
+            naSelecao.select(8, 18); // do meio do primeiro item ate o ultimo
+            naSelecao.clearFormatting();
+        });
+        SwingUtilities.invokeAndWait(naSelecao::flush);
+        String comSel = semCor(comSelecao.html().toLowerCase());
+        Check.that("selecao parcial desmontou a lista inteira",
+                !comSel.contains("<ol") && !comSel.contains("<li"));
+        Check.that("nenhum paragrafo ficou dentro de item", !comSel.contains("<li><p"));
+        Check.that("os itens viraram linhas soltas", contagem(comSel, "<p") == 5);
+        Check.that("o texto de fora da lista ficou intacto",
+                comSelecao.text().contains("antes") && comSelecao.text().contains("depois"));
+        Check.that("e o negrito de fora da selecao continua",
+                comSel.contains("<b>depois</b>"));
+        SwingUtilities.invokeAndWait(naSelecao::dispose);
+
+        // o link e conteudo, nao formatacao: sobrevive
+        Note comLink = Note.create();
+        comLink.html("<html><body><ul><li><a href=\"https://exemplo.org\">site</a></li>"
+                + "</ul></body></html>");
+        store.save(comLink);
+        NoteFrame outra = abrir(comLink, app);
+        SwingUtilities.invokeAndWait(() -> {
+            outra.select(0, 0);
+            outra.clearFormatting();
+        });
+        SwingUtilities.invokeAndWait(outra::flush);
+        Check.that("a lista com link tambem virou texto",
+                !comLink.html().toLowerCase().contains("<li"));
+        Check.that("mas o link continua la", comLink.html().contains("https://exemplo.org"));
+        SwingUtilities.invokeAndWait(outra::dispose);
     }
 
     /**
@@ -123,7 +272,8 @@ public final class HtmlChecks {
         Check.that("a linha nao selecionada ficou fora da lista",
                 parcial.indexOf("terceira") > parcial.indexOf("</ul>"));
 
-        String negrito = comLista(app, store, "um<br><b>dois</b><br>tres", 1, 500);
+        // sem as tags de cor, que o escritor do Swing intercala e que vem da paleta
+        String negrito = semCor(comLista(app, store, "um<br><b>dois</b><br>tres", 1, 500));
         Check.that("o negrito de dentro da linha sobreviveu", negrito.contains("<b>dois</b>"));
 
         String link = comLista(app, store,
@@ -229,6 +379,96 @@ public final class HtmlChecks {
         return comLista(app, store, corpo, de, ate, false);
     }
 
+    /**
+     * Fonte monoespacada <b>do trecho selecionado</b>, marcada com {@code <tt>}.
+     *
+     * <p>Duas coisas que a implementacao teve de descobrir, e que estas checagens travam:
+     * marcar o trecho por atributo de fonte desenha certo na tela mas o escritor grava
+     * {@code face=""} -- a fonte se perde no disco; e a insercao de HTML do Swing trata
+     * {@code <tt>} como bloco e parte o paragrafo em tres, entao o paragrafo tem de ser
+     * remontado inteiro.
+     */
+    private static void fonteMonoespacada() throws Exception {
+        Check.grupo("Fonte monoespacada no trecho");
+        Path base = Files.createTempDirectory("recados-mono");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.html("<html><body><p>antes MEIO depois</p></body></html>");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(7, 11); // so a palavra MEIO
+            frame.toggleMonospaced();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        String html = semCor(nota.html().toLowerCase());
+        Check.that("o trecho ficou monoespacado", html.contains("<tt>meio</tt>"));
+        Check.that("o resto da linha nao", html.contains("antes <tt>") && html.contains("</tt> depois"));
+        Check.that("e o paragrafo continua um so", contagem(html, "<p") == 1);
+        Check.that("o menu sabe que o cursor esta num trecho monoespacado",
+                frame.monospacedAtCaret());
+
+        String arquivo = Files.readString(base.resolve("notes").resolve(nota.id() + ".html"));
+        Check.that("o arquivo guarda a marca", arquivo.contains("<tt>"));
+        Check.that("e o style diz qual fonte, para o navegador mostrar igual",
+                arquivo.contains("tt { font-family: Consolas"));
+
+        // desligar tira a marca -- e so dela
+        SwingUtilities.invokeAndWait(() -> {
+            frame.select(7, 11);
+            frame.toggleMonospaced();
+        });
+        SwingUtilities.invokeAndWait(frame::flush);
+        Check.that("desligar tirou a marca", !nota.html().toLowerCase().contains("<tt"));
+        Check.that("e o texto ficou inteiro", nota.text().equals("antes MEIO depois"));
+        SwingUtilities.invokeAndWait(frame::dispose);
+
+        // selecao atravessando paragrafos: cada um recebe a sua marca, porque <tt> e inline
+        Note varias = Note.create();
+        varias.html("<html><body><p>um</p><p>dois</p><p>tres</p></body></html>");
+        store.save(varias);
+        NoteFrame outra = abrir(varias, app);
+        SwingUtilities.invokeAndWait(() -> {
+            outra.select(1, 9);
+            outra.toggleMonospaced();
+        });
+        SwingUtilities.invokeAndWait(outra::flush);
+        String duas = semCor(varias.html().toLowerCase());
+        Check.that("cada paragrafo tocado recebeu a marca", contagem(duas, "<tt>") == 2);
+        Check.that("o paragrafo de fora ficou sem ela",
+                duas.indexOf("tres") > duas.lastIndexOf("</tt>"));
+        Check.that("e nenhum paragrafo foi partido", contagem(duas, "<p") == 3);
+        SwingUtilities.invokeAndWait(outra::dispose);
+
+        // sem selecao, vale a nota toda
+        Note toda = Note.create();
+        toda.html("<html><body><p>uma</p><p>outra</p></body></html>");
+        store.save(toda);
+        NoteFrame naToda = abrir(toda, app);
+        SwingUtilities.invokeAndWait(() -> {
+            naToda.select(1, 1);
+            naToda.toggleMonospaced();
+        });
+        SwingUtilities.invokeAndWait(naToda::flush);
+        Check.that("sem selecao a nota toda fica monoespacada",
+                contagem(semCor(toda.html().toLowerCase()), "<tt>") == 2);
+        SwingUtilities.invokeAndWait(naToda::dispose);
+
+        // nota da versao em que a fonte era da nota inteira, num metadado
+        Files.writeString(base.resolve("notes").resolve("antiga-mono.html"),
+                "<!DOCTYPE html>\n<html><head>"
+                        + "<meta name=\"recados:font\" content=\"mono\">"
+                        + "</head><body><p>era da nota toda</p></body></html>");
+        Note convertida = new NoteStore(base).loadAll().stream()
+                .filter(n -> n.id().equals("antiga-mono")).findFirst().orElseThrow();
+        Check.that("o metadado antigo virou marca de trecho",
+                convertida.html().toLowerCase().contains("<tt>"));
+        Check.that("com o texto intacto", convertida.text().contains("era da nota toda"));
+    }
+
     /** Abre uma nota com este corpo, seleciona o trecho, aciona a lista e devolve o HTML. */
     private static String comLista(RecadosApp app, NoteStore store, String corpo, int de, int ate,
             boolean numerada) throws Exception {
@@ -247,6 +487,11 @@ public final class HtmlChecks {
         SwingUtilities.invokeAndWait(frame::flush);
         SwingUtilities.invokeAndWait(frame::dispose);
         return nota.html().toLowerCase();
+    }
+
+    /** Tira as tags de cor do HTML: a cor vem da paleta, e nao e o que a checagem observa. */
+    private static String semCor(String html) {
+        return html.replaceAll("(?i)</?font[^>]*>", "");
     }
 
     private static int contagem(String texto, String agulha) {

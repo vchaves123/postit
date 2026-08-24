@@ -28,6 +28,8 @@ No Linux/macOS, use `./recados.sh`.
 | Trocar a cor | botão do meio-círculo ou `Ctrl+E` (6 cores; a padrão é azul) |
 | Formatar texto | a **barra de ícones no rodapé** (aparece com a nota em foco) |
 | Desfazer / refazer | `Ctrl+Z` / `Ctrl+Y` (ou `Ctrl+Shift+Z`), e no menu de contexto |
+| Aumentar / diminuir | `Ctrl +` / `Ctrl −` — cresce **o texto e a janela juntos**; `Ctrl 0` volta ao normal |
+| Fonte monoespaçada | Formatar → **Fonte monoespaçada** — na seleção; sem seleção, na nota toda |
 | Fixar/soltar no topo | botão do ponto (cheio = fixada) ou `Ctrl+T` |
 | Minimizar a nota | botão da barra ou `Ctrl+W` — **não apaga**, volta pela bandeja |
 | Apagar a nota | `Ctrl+D` ou o menu de contexto — pede confirmação e vai para a lixeira; nota **em branco** apaga direto |
@@ -115,7 +117,21 @@ O documento é **HTML**, e a formatação fica numa **barra de ícones no rodap�
 | três linhas com marcadores | lista com marcadores — **com texto selecionado, cada linha vira um item**; sem seleção, um item vazio | menu Formatar |
 | três linhas numeradas | a mesma coisa, numerada (`<ol>`) | menu Formatar |
 | dois elos de corrente | inserir link — a seleção vira o rótulo; sem seleção, o endereço | menu Formatar |
-| borracha | limpar formatação (na seleção, ou na nota toda) | menu Formatar |
+| `</>` | fonte monoespaçada **na seleção** (sem seleção, na nota toda) | menu Formatar |
+| borracha | limpar formatação: tira negrito/itálico/sublinhado **e desmonta listas** (na seleção, ou na nota toda) | menu Formatar |
+
+**`ENTER`** quebra a linha: dentro de uma lista cria o item seguinte, e num item vazio **sai da
+lista** — que é o único jeito de terminar uma lista sem usar o mouse. Fora de lista, divide o
+parágrafo onde o cursor está.
+
+Limpar formatação **não tira os links**. Link não é decoração, é conteúdo: perder o endereço ali
+seria perder informação que não está em nenhum outro lugar da nota.
+
+Com seleção, a borracha desmonta **a lista inteira** que a seleção tocar, não só as linhas
+marcadas — e não mexe em parágrafo nenhum além de tirar o estilo da seleção. Trocar a lista
+inteira não é preguiça: apagar só o texto dos itens deixa o `<ul>` e os `<li>` vazios de pé, e as
+linhas novas vão para *dentro* do item — o marcador do primeiro continua na tela e o resto sai
+indentado. Foi o que aconteceu na primeira versão disto.
 
 O **recuo da lista é 10 px**, e não os 50 px que o Swing usa por padrão para `<ul>` — numa nota
 de 280 px, 50 px comem um sexto da linha e jogam o marcador para o meio do nada. Com 10 px o
@@ -124,10 +140,11 @@ no pixel pintado, e uma checagem trava a medida.
 
 Abrir um link é **Ctrl+clique**. Copiar a nota com formatação continua no menu **Formatar** do
 clique direito, junto de tudo o que está na barra — é ação da nota inteira, não da seleção, e
-tirá-la da barra é parte do que faz os ícones caberem na nota mais estreita (160 px). A outra
-parte é o tamanho: os botões do rodapé têm 20 px, e não 22 px como os da barra de título, porque
-com sete a 22 px a barra não caberia ao lado da alça. Uma checagem confere essa conta — é onde o
-oitavo botão vai avisar que não cabe mais.
+tirá-la da barra é parte do que faz os ícones caberem na nota mais estreita. A outra parte é o
+tamanho: os botões do rodapé têm 18 px, e não 22 px como os da barra de título — o `</>` tem 22,
+porque três elementos em 14 px viram borrão. A soma (164 px com a alça) é a razão de a **largura
+mínima da nota ser 180 px**. Uma checagem confere essa conta: foi ela que avisou quando o oitavo
+botão passou de 160, e é ela que vai avisar do nono.
 
 A barra fica **embaixo**, e não na barra de título, para não misturar ações da *janela* (nova
 nota, cor, fixar, minimizar) com ações do *texto*. E aparece só com a nota em foco: nota que
@@ -147,6 +164,35 @@ somente-leitura.
 
 A cor do texto vem da paleta da nota, não do documento: trocar a cor recolore tudo. Os links
 ficam de fora — azul de link não é decoração, é sinal de que dá para clicar.
+
+### Fonte, tamanho e a barra de rolagem
+
+`Ctrl +` e `Ctrl −` mudam **a fonte e a janela na mesma proporção**, então o texto continua
+ocupando o mesmo espaço relativo dentro da nota; `Ctrl 0` volta ao padrão (11 pt). O tamanho é da
+nota, vai gravado em `recados:font-size` e entra no `<style>` do arquivo — a nota aberta no
+navegador tem o mesmo tamanho da nota na tela.
+
+**Fonte monoespaçada é do trecho selecionado** (sem seleção, da nota toda), marcada com `<tt>`.
+Três descobertas decidiram essa implementação, e cada uma tem checagem:
+
+- **Marcar por atributo de fonte não persiste.** Na tela funciona — o `MMMM` monoespaçado mede
+  32 px contra 40 px do proporcional —, mas o escritor de HTML do Swing grava `face=""`: a fonte
+  se perde no disco. Com `<tt>` a marca sobrevive ao ida-e-volta, e o navegador já a entende.
+- **Inserir `<tt>` como HTML parte o parágrafo.** A inserção do Swing trata a tag como bloco:
+  "antes MEIO depois" virava três parágrafos. O parágrafo é remontado inteiro (`setInnerHTML`),
+  então continua um.
+- **O Swing guarda `<tt>` como atributo do caractere, não como elemento** — igual a `<b>` e
+  `<a>`. Procurar por elemento nunca acha nada, e foi assim que *desligar* a fonte não funcionou
+  na primeira versão.
+
+Cor e tamanho, por outro lado, são aplicados como **atributo de caractere**, não como regra de
+CSS: regra adicionada à folha de estilo de um documento que *já existe* não redesenha nada —
+medido. Mas o arquivo **não** guarda `face` e `size` em cada trecho: repetidos ali eles
+atropelariam o `<style>` no navegador. Ficam nos metadados; a janela os reaplica ao abrir.
+
+A **barra de rolagem** é pintada com a cor da nota (trilha da cor do corpo, polegar cinza
+translúcido, 9 px, sem setas nas pontas). A do sistema chega cinza, e uma faixa cinza no meio de
+uma nota colorida se anuncia como "componente" em vez de parte do papel.
 
 ### Desfazer
 
@@ -174,7 +220,7 @@ Abrem sem nada a fazer. Nota com `rtf=` (de duas versões atrás) é convertida 
 só com `text=` também — ver "Onde as notas ficam". Se o HTML estiver corrompido, a nota abre
 pelo texto puro em vez de falhar.
 
-### Quatro armadilhas do Swing que valem registro
+### Armadilhas do Swing que valem registro
 
 `InsertHTMLTextAction` **não insere nada quando o cursor está no offset 0** — e não reclama.
 Como a nota abre com o cursor em 0, lista e link desapareciam em silêncio se você não clicasse
@@ -183,12 +229,27 @@ antes. Por isso o cursor é levado para o fim quando está em zero.
 Marcar o texto com o atributo `HTML.Tag.A` para criar link **não funciona**: o escritor emite
 `<a href><u><p-implied></u></a>`, sem o rótulo. O link precisa entrar como HTML, pelo parser.
 
-**Linha não é sempre a mesma coisa.** Texto digitado na nota vira `<br>` dentro de *um*
-parágrafo (`p-implied`); texto **colado** de fora vira um `<p>` por linha. As duas formas
-convivem na mesma nota, então quebrar por linha é considerar as duas — e, no caso do parágrafo,
-não deixar para trás o `<p>` que ficou vazio, senão sobra uma linha em branco. E o
-`HTMLDocument` guarda uma quebra própria no offset 0, então seleção que começa em zero (Ctrl+A)
-precisa pular essa primeira posição, senão a lista sai vazia.
+**Uma linha é um `<p>`, e isso é o que faz o `ENTER` funcionar.** O `insert-break` do Swing
+divide o parágrafo onde o cursor está — e quando o texto não está dentro de um `<p>` de verdade
+(o Swing chama isso de `p-implied`), não há o que dividir: a tecla insere um `"\n"` cru, que em
+HTML é espaço em branco e **não aparece na tela**. Era o caso de toda nota digitada, de nota
+antiga e de nota convertida de RTF. Por isso o conteúdo é normalizado em um parágrafo por linha
+ao abrir. Linha em branco continua linha em branco: `<p></p>` ocupa a mesma altura que o `<br>`
+que ele substituiu (medido: 30 px entre duas linhas nos dois casos).
+
+Ainda assim, as duas formas convivem numa nota (texto colado traz `<p>`, HTML de fora pode trazer
+`<br>`), então quebrar por linha considera as duas — e, no caso do parágrafo, não deixa para trás
+o `<p>` que ficou vazio, senão sobra uma linha em branco. E o `HTMLDocument` guarda uma quebra
+própria no offset 0, então seleção que começa em zero (Ctrl+A) precisa pular essa primeira
+posição, senão a lista sai vazia.
+
+**Regex de tag pede fronteira.** `</?(…|b|…)[^>]*>` parece certo e **come o `<br>`**: "b" é
+prefixo de "br". Foi assim que "limpar formatação" juntou a nota toda numa linha só. O padrão
+tem de exigir `>` ou espaço depois do nome da tag: `(\s[^>]*)?>`.
+
+**O escritor de HTML às vezes devolve documento sem `<body>`** — `<html><head>…</head>conteúdo
+</html>`. Tratar isso como "o corpo" grava um `<html>` dentro do `<body>` do arquivo. A extração
+do corpo tira cabeçalho e `<html>` quando não acha `<body>`, e uma checagem confere o arquivo.
 
 Botão que **recebe o foco apaga a seleção na tela**: você marca a palavra, clica no B, e não vê
 mais o que marcou. Os botões da barra de formatação são `setFocusable(false)` por isso, e uma
@@ -207,7 +268,10 @@ Cobrem o formato do arquivo HTML e seus metadados, a pasta de minimizadas, a lix
 restauração, nota em branco apagando direto, a conversão do formato `.properties`, a migração
 de `~/.postit`, minimizar sem apagar, `WM_CLOSE` sem minimizar, apagar sem ressuscitar, a barra
 de formatação (aparece com o foco, não rouba o foco, e cabe na nota mais estreita), desfazer e
-refazer, o ida-e-volta do HTML, a lista com marcadores e a numerada feitas a
+refazer, a tecla ENTER (parágrafo, item de lista, e sair da lista), limpar formatação
+desmontando listas, zoom de texto e janela, a fonte monoespacada no trecho, a barra de rolagem com
+a cor da
+nota, o ida-e-volta do HTML, a lista com marcadores e a numerada feitas a
 partir da seleção, links e a colagem com `text/html`.
 
 **Por que não JUnit e `mvn test`:** nesta máquina o Kaspersky encerra o booter do

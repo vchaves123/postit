@@ -157,6 +157,13 @@ public final class NoteStore {
         Map<String, String> meta = readMeta(content);
         String body = body(content);
 
+        // Compatibilidade com a versao em que a fonte monoespacada era da nota inteira, e
+        // vinha num metadado: hoje ela e marca de trecho (<tt>), entao a nota antiga entra
+        // com o corpo todo marcado -- o resultado na tela e o mesmo, e o metadado morre aqui.
+        if ("mono".equalsIgnoreCase(orEmpty(meta.get("font")).strip())) {
+            body = "<tt>" + body + "</tt>";
+        }
+
         Note note = new Note(idOf(file, EXTENSION), createdAt(meta.get("created-at")));
         note.html("<html><body>" + body + "</body></html>");
         note.text(htmlToPlainText(body));
@@ -165,6 +172,7 @@ public final class NoteStore {
                 parseInt(meta.get("height"), Note.DEFAULT_HEIGHT));
         note.colorIndex(colorIndex(meta.get("color")));
         note.alwaysOnTop(!"false".equalsIgnoreCase(orEmpty(meta.get("always-on-top")).strip()));
+        note.fontSize(parseInt(meta.get("font-size"), Note.DEFAULT_FONT_SIZE));
         note.visible(visible); // vem da pasta, nao do arquivo
         return note;
     }
@@ -361,11 +369,17 @@ public final class NoteStore {
         // pelo nome, e nao pela posicao: reordenar a paleta nao pode repintar nota gravada
         meta(out, "color", palette.name());
         meta(out, "always-on-top", Boolean.toString(note.alwaysOnTop()));
+        meta(out, "font-size", Integer.toString(note.fontSize()));
         out.append("<style>\n")
                 .append("body { background: ").append(hex(palette.body()))
                 .append("; color: ").append(hex(palette.text()))
-                .append("; font-family: 'Segoe UI', sans-serif; font-size: 11pt;")
+                // a mesma fonte e o mesmo tamanho da nota na tela: o arquivo aberto no
+                // navegador tem de ser a nota, nao uma versao dela
+                .append("; font-family: 'Segoe UI', sans-serif")
+                .append("; font-size: ").append(note.fontSize()).append("pt;")
                 .append(" margin: 0; padding: 14px; }\n")
+                // trecho monoespacado: a mesma familia que a nota usa na tela
+                .append("tt { font-family: ").append(NoteFrame.MONO_FAMILY_CSS).append("; }\n")
                 .append("a { color: #0B57D0; }\n") // o mesmo azul de link da nota
                 // o mesmo recuo curto da nota, para o arquivo aberto no navegador nao
                 // mostrar a lista num lugar diferente de onde ela esta na tela
@@ -387,10 +401,10 @@ public final class NoteStore {
      */
     private static String contentOf(Note note) {
         String html = body(note.html());
-        if (!html.isBlank()) {
-            return html;
+        if (html.isBlank()) {
+            html = body(HtmlText.plainToHtml(note.text()));
         }
-        return body(HtmlText.plainToHtml(note.text()));
+        return HtmlText.withoutFontMetrics(html);
     }
 
     private static void meta(StringBuilder out, String name, String value) {
@@ -421,11 +435,19 @@ public final class NoteStore {
      * junto no arquivo, em {@code text=}; num arquivo HTML de verdade ele e derivado, para
      * o arquivo nao ter duas versoes do mesmo conteudo podendo divergir.
      */
+    /** Marca a quebra de linha antes de amassar o resto do espaco em branco. */
+    private static final String LINE_MARK = "\0"; // nao aparece em texto de nota
+
     static String htmlToPlainText(String html) {
-        String text = LINE_BREAKS.matcher(html).replaceAll("\n");
+        String text = LINE_BREAKS.matcher(html).replaceAll(LINE_MARK);
         text = TAGS.matcher(text).replaceAll("");
         text = unescapeHtml(text);
-        text = text.replace("\r", "").replaceAll("[ \t]+\n", "\n").replaceAll("\n{3,}", "\n\n");
+        // Em HTML, quebra de linha no meio do texto e espaco em branco, nao quebra de linha --
+        // e o escritor do Swing quebra as linhas dele onde quiser, no meio de uma frase. Sem
+        // amassar isso aqui, o titulo da nota e qualquer grep herdavam a quebra do escritor.
+        text = text.replaceAll("[ \t\r\n\f]+", " ");
+        text = text.replace(LINE_MARK, "\n");
+        text = text.replaceAll("[ \t]*\n[ \t]*", "\n").replaceAll("\n{3,}", "\n\n");
         return text.strip();
     }
 

@@ -86,6 +86,33 @@ public final class StoreChecks {
         Check.that("arquivo temporario e ignorado",
                 new NoteStore(base).loadAll().size() == 1);
 
+        // O escritor do Swing quebra as linhas DELE onde quiser, no meio de uma frase. Em
+        // HTML isso e espaco em branco, nao quebra de linha -- se virasse, o titulo da nota e
+        // qualquer grep herdariam a quebra do escritor.
+        Files.writeString(base.resolve("notes").resolve("quebrada.html"),
+                "<html><head></head><body><p>uma frase que o escritor\n"
+                        + "      quebrou no meio</p><p>outra linha</p></body></html>");
+        Note quebrada = new NoteStore(base).loadAll().stream()
+                .filter(n -> n.id().equals("quebrada")).findFirst().orElseThrow();
+        Check.that("quebra de linha do escritor nao vira quebra de linha no texto",
+                quebrada.text().startsWith("uma frase que o escritor quebrou no meio"));
+        Check.that("mas paragrafo continua sendo linha",
+                quebrada.text().equals("uma frase que o escritor quebrou no meio\noutra linha"));
+
+        // Fonte e tamanho vivem nos metadados e no <style>; repetidos em cada trecho eles
+        // atropelam o <style> no navegador, e a familia que o Swing escreve para a
+        // monoespacada ("Monospaced") e um nome logico que so o Java conhece.
+        Note comFonte = Note.create();
+        comFonte.html("<html><body><p><font color=\"#1e3547\" face=\"Segoe UI\" size=\"3\">"
+                + "texto</font></p></body></html>");
+        store.save(comFonte);
+        String comFonteNoDisco = Files.readString(
+                base.resolve("notes").resolve(comFonte.id() + ".html"));
+        String corpo = comFonteNoDisco.substring(comFonteNoDisco.indexOf("<body>"));
+        Check.that("o arquivo nao repete a fonte em cada trecho", !corpo.contains("face="));
+        Check.that("nem o tamanho", !corpo.contains("size="));
+        Check.that("mas a cor do trecho fica", corpo.contains("color="));
+
         // aspas e sinais de marcacao no texto nao podem quebrar o arquivo
         Note complicada = Note.create();
         complicada.html("<html><body>a &lt; b &amp; \"cotado\"</body></html>");
@@ -235,8 +262,10 @@ public final class StoreChecks {
             naLixeira = files.toList();
         }
         Check.that("um arquivo na lixeira", naLixeira.size() == 1);
-        Check.that("texto multilinha preservado",
-                Files.readString(naLixeira.get(0)).contains("linha um<br>linha dois"));
+        // uma linha, um paragrafo: e o que faz a tecla ENTER funcionar (ver HtmlText)
+        String naoLixo = Files.readString(naLixeira.get(0));
+        Check.that("texto multilinha preservado, uma linha por paragrafo",
+                naoLixo.contains("<p>linha um</p>") && naoLixo.contains("<p>linha dois</p>"));
         Check.that("nome tem carimbo de tempo", naLixeira.get(0).getFileName().toString()
                 .matches(nota.id() + "-\\d+\\.html"));
 

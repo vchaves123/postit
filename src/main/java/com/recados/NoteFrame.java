@@ -12,6 +12,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Desktop;
 import java.awt.Toolkit;
@@ -31,6 +32,7 @@ import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -39,6 +41,8 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
@@ -48,12 +52,15 @@ import javax.swing.TransferHandler;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.undo.CompoundEdit;
 import javax.swing.undo.UndoManager;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.SimpleAttributeSet;
@@ -103,8 +110,21 @@ public final class NoteFrame extends JFrame {
     /** Cabe a alca e os botoes de formatacao, que tem a mesma altura dos da barra de titulo. */
     private static final int FOOTER_HEIGHT = 26;
 
+    /** Estreita: a barra e para saber onde voce esta, nao um controle para se mirar. */
+    private static final int SCROLLBAR_WIDTH = 9;
+
     /** Azul de link. Mais forte que o texto de qualquer paleta, inclusive a azul. */
     private static final Color LINK_COLOR = new Color(0x0B57D0);
+
+    /**
+     * A familia do trecho monoespacado, escrita como o CSS espera: o Swing entende a lista e
+     * fica na primeira que existir, e o navegador que abrir o arquivo faz o mesmo. Uma
+     * generica no fim ({@code monospace}) garante largura fixa em qualquer sistema.
+     */
+    static final String MONO_FAMILY_CSS = "Consolas, 'Courier New', monospace";
+
+    /** Os tamanhos que o Ctrl+ e o Ctrl- percorrem, em pontos. */
+    private static final int[] FONT_SIZES = {8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28};
 
     /**
      * Quanto tempo sem editar fecha um passo de desfazer. Sem isto, cada tecla seria um
@@ -119,6 +139,7 @@ public final class NoteFrame extends JFrame {
     private final JPanel header = new JPanel(new BorderLayout());
     private final JPanel footer = new JPanel(new BorderLayout());
     private final JPanel formatBar = new JPanel();
+    private JScrollBar scrollBar;
     private final GlyphButton pinButton;
     private final Timer saveTimer;
 
@@ -250,6 +271,13 @@ public final class NoteFrame extends JFrame {
         scroll.getViewport().setOpaque(false);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+        // A barra de rolagem do sistema chega cinza, e uma faixa cinza no meio de uma nota
+        // colorida se anuncia como "componente", nao como parte do papel.
+        scrollBar = scroll.getVerticalScrollBar();
+        scrollBar.setUI(new NoteScrollBarUI());
+        scrollBar.setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
+        scrollBar.setOpaque(false);
         return scroll;
     }
 
@@ -281,6 +309,12 @@ public final class NoteFrame extends JFrame {
                 () -> applyStyle(new StyledEditorKit.ItalicAction()));
         formatButton(Glyph.UNDERLINE, "Sublinhado (Ctrl+U)",
                 () -> applyStyle(new StyledEditorKit.UnderlineAction()));
+        // 4px mais largo que os vizinhos: o "</>" sao tres elementos, e em 14px eles se
+        // encostam. A diferenca de largura nao se nota; o borrao se notava. Estes 4px sao a
+        // razao de a largura minima da nota ser 180, e nao 160.
+        formatBar.add(new GlyphButton(Glyph.MONOSPACED,
+                "Fonte monoespacada na selecao -- sem selecao, na nota toda",
+                this::toggleMonospaced, GlyphButton.SMALL_SIZE + 4));
         formatButton(Glyph.LIST, "Lista com marcadores -- cada linha selecionada vira um item",
                 this::insertList);
         formatButton(Glyph.NUMBERED_LIST,
@@ -438,6 +472,9 @@ public final class NoteFrame extends JFrame {
         css.addRule("ul, ol { margin-top: 0; margin-bottom: 0; margin-left: 10px;"
                 + " padding-left: 0; }");
         css.addRule("a { text-decoration: underline; }");
+        // <tt> e a marca de trecho monoespacado. O Swing ja desenha <tt> em largura fixa; a
+        // regra deixa explicito qual familia, e o mesmo texto vai para o <style> do arquivo.
+        css.addRule("tt { font-family: " + MONO_FAMILY_CSS + "; }");
         return kit;
     }
 
@@ -454,14 +491,18 @@ public final class NoteFrame extends JFrame {
         if (html.isBlank()) {
             html = HtmlText.plainToHtml(note.text());
         }
-        String conteudo = html;
+        // Conteudo solto (texto com <br>) vira um <p> por linha. Sem isto a tecla ENTER nao
+        // funciona: o insert-break do Swing divide o paragrafo onde o cursor esta, e fora de
+        // um <p> de verdade nao ha o que dividir -- a tecla inseria um "\n" invisivel.
+        String conteudo = "<html><body>"
+                + HtmlText.toParagraphs(HtmlText.body(html)) + "</body></html>";
         // Nada da abertura da nota entra na pilha de desfazer. Se entrasse, o primeiro Ctrl+Z
         // de uma nota recem-aberta apagaria o texto todo -- para o documento, carregar e
         // inserir. O discardAllEdits e cinto e suspensorio para o que o kit dispare sozinho.
         withoutUndo(() -> {
             textPane.setText(conteudo);
             textPane.setCaretPosition(0);
-            applyTextColor();
+            applyTypography();
         });
         undoManager.discardAllEdits();
     }
@@ -501,6 +542,98 @@ public final class NoteFrame extends JFrame {
         bindStyle("control B", new StyledEditorKit.BoldAction());
         bindStyle("control I", new StyledEditorKit.ItalicAction());
         bindStyle("control U", new StyledEditorKit.UnderlineAction());
+
+        // ENTER dentro de uma lista cria o item seguinte; fora dela, o Swing divide o
+        // paragrafo, o que passou a funcionar desde que o conteudo mora em <p> de verdade.
+        Action swingBreak = textPane.getActionMap().get(DefaultEditorKit.insertBreakAction);
+        bindStyle("ENTER", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!splitListItem()) {
+                    swingBreak.actionPerformed(e);
+                }
+                scheduleSave();
+            }
+        });
+    }
+
+    /**
+     * ENTER dentro de um item de lista. Item com texto: divide, e o que estava depois do
+     * cursor vai para o item novo. Item vazio: sai da lista, que e o unico jeito de terminar
+     * uma lista sem usar o mouse.
+     *
+     * @return {@code false} quando o cursor nao esta numa lista -- ai o ENTER e do Swing.
+     */
+    private boolean splitListItem() {
+        if (!(textPane.getDocument() instanceof HTMLDocument doc)) {
+            return false;
+        }
+        Element item = enclosing(doc, textPane.getCaretPosition(), HTML.Tag.LI);
+        if (item == null) {
+            return false;
+        }
+        asOneUndoStep(() -> {
+            try {
+                if (isEmptyItem(doc, item)) {
+                    leaveList(doc, item);
+                } else {
+                    splitItem(doc, item);
+                }
+            } catch (BadLocationException | IOException e) {
+                System.err.println("Nao foi possivel quebrar o item da lista: " + e.getMessage());
+            }
+        });
+        return true;
+    }
+
+    /** O item novo leva o que estava depois do cursor. */
+    private void splitItem(HTMLDocument doc, Element item) throws BadLocationException, IOException {
+        int caret = textPane.getCaretPosition();
+        int end = Math.min(item.getEndOffset() - 1, doc.getLength());
+        String rest = end > caret ? HtmlText.body(rangeAsHtml(caret, end)) : "";
+        if (end > caret) {
+            doc.remove(caret, end - caret);
+        }
+        doc.insertAfterEnd(item, "<li>" + rest + "</li>");
+        Element novo = nextSibling(item);
+        if (novo != null) {
+            textPane.setCaretPosition(Math.min(novo.getStartOffset(), doc.getLength()));
+        }
+    }
+
+    /** Item vazio + ENTER termina a lista, com um paragrafo depois dela. */
+    private void leaveList(HTMLDocument doc, Element item) throws BadLocationException, IOException {
+        Element list = item.getParentElement();
+        doc.insertAfterEnd(list, "<p></p>");
+        doc.removeElement(item);
+        int after = Math.min(list.getEndOffset(), doc.getLength());
+        textPane.setCaretPosition(after);
+    }
+
+    private static boolean isEmptyItem(HTMLDocument doc, Element item) throws BadLocationException {
+        int start = item.getStartOffset();
+        int end = Math.min(item.getEndOffset(), doc.getLength());
+        return end <= start || doc.getText(start, end - start).strip().isEmpty();
+    }
+
+    /** O elemento com esta tag que contem a posicao, ou {@code null} se nao houver. */
+    private static Element enclosing(HTMLDocument doc, int offset, HTML.Tag tag) {
+        for (Element at = doc.getCharacterElement(offset); at != null; at = at.getParentElement()) {
+            if (tag.toString().equals(at.getName())) {
+                return at;
+            }
+        }
+        return null;
+    }
+
+    private static Element nextSibling(Element element) {
+        Element parent = element.getParentElement();
+        for (int i = 0; i < parent.getElementCount() - 1; i++) {
+            if (parent.getElement(i) == element) {
+                return parent.getElement(i + 1);
+            }
+        }
+        return null;
     }
 
     /**
@@ -553,31 +686,39 @@ public final class NoteFrame extends JFrame {
             }
             list.append("</").append(tag).append(">");
 
-            // A lista e um bloco: ela mesma separa o que vem antes e depois. As quebras que
-            // delimitavam as linhas convertidas viram linha vazia se ficarem, entao saem com
-            // elas. A da frente so sai se nao for a primeira posicao util do documento.
-            int removeFrom = from > 1 && isBreak(doc, from - 1) ? from - 1 : from;
-            int removeTo = to < doc.getLength() && isBreak(doc, to) ? to + 1 : to;
-
-            doc.remove(removeFrom, removeTo - removeFrom);
-
-            // Se as linhas convertidas eram um paragrafo inteiro -- e o que acontece com
-            // texto colado de fora, que chega como um <p> por linha --, sobra um paragrafo
-            // vazio no lugar. Trocar o elemento pela lista nao deixa esse resto; inserir no
-            // cursor deixaria uma linha em branco antes dela.
-            Element paragraph = doc.getParagraphElement(removeFrom);
-            if (paragraph.getEndOffset() - paragraph.getStartOffset() <= 1) {
-                doc.setOuterHTML(paragraph, list.toString());
-                scheduleSave();
-                return;
-            }
-            textPane.setCaretPosition(removeFrom);
-            applyStyle(new HTMLEditorKit.InsertHTMLTextAction("lista", list.toString(),
-                    HTML.Tag.BODY, tag));
+            replaceRange(doc, from, to, list.toString(), tag, true);
         } catch (BadLocationException | IOException e) {
             System.err.println("Nao foi possivel transformar a selecao em lista: "
                     + e.getMessage());
         }
+    }
+
+    /**
+     * Troca um trecho do documento por HTML.
+     *
+     * @param eatBreaks quando o HTML novo e um bloco (uma lista, por exemplo): ele mesmo
+     *                  separa o que vem antes e depois, e as quebras que delimitavam o trecho
+     *                  virariam linha em branco se ficassem. Para texto comum, {@code false}:
+     *                  ali as quebras sao as linhas.
+     */
+    private void replaceRange(HTMLDocument doc, int from, int to, String html, HTML.Tag tag,
+            boolean eatBreaks) throws BadLocationException, IOException {
+        int removeFrom = eatBreaks && from > 1 && isBreak(doc, from - 1) ? from - 1 : from;
+        int removeTo = eatBreaks && to < doc.getLength() && isBreak(doc, to) ? to + 1 : to;
+
+        doc.remove(removeFrom, removeTo - removeFrom);
+
+        // Se o trecho era um paragrafo inteiro -- e o que acontece com texto colado de fora,
+        // que chega como um <p> por linha --, sobra um paragrafo vazio no lugar. Trocar o
+        // elemento nao deixa esse resto; inserir no cursor deixaria uma linha em branco.
+        Element paragraph = doc.getParagraphElement(removeFrom);
+        if (paragraph.getEndOffset() - paragraph.getStartOffset() <= 1) {
+            doc.setOuterHTML(paragraph, html);
+            scheduleSave();
+            return;
+        }
+        textPane.setCaretPosition(removeFrom);
+        applyStyle(new HTMLEditorKit.InsertHTMLTextAction("troca", html, HTML.Tag.BODY, tag));
     }
 
     /** O HTML de um trecho do documento, com a formatacao de dentro dele. */
@@ -771,8 +912,45 @@ public final class NoteFrame extends JFrame {
         scheduleSave();
     }
 
-    /** Tira negrito, italico e sublinhado da selecao -- ou da nota toda, se nao houver. */
-    private void clearFormatting() {
+    /**
+     * Limpa a formatacao da selecao -- ou da nota toda, se nao houver selecao. Tira negrito,
+     * italico e sublinhado, e <b>desmonta as listas</b>: item de lista volta a ser linha de
+     * texto comum. O link fica: link nao e decoracao, e conteudo, e perder o endereco aqui
+     * seria perder informacao que nao esta em nenhum outro lugar.
+     */
+    public void clearFormatting() {
+        asOneUndoStep(() -> {
+            clearCharacterStyles();
+            unwrapBlocks();
+        });
+    }
+
+    /** Se a barra de rolagem esta com a nossa pintura, e nao com a do sistema. */
+    public boolean scrollBarStyled() {
+        return scrollBar != null && scrollBar.getUI() instanceof NoteScrollBarUI
+                && scrollBar.getPreferredSize().width == SCROLLBAR_WIDTH;
+    }
+
+    /** A cor de fundo da barra de rolagem, que segue a paleta da nota. */
+    public Color scrollBarBackground() {
+        return scrollBar == null ? null : scrollBar.getBackground();
+    }
+
+    /** Se o cursor esta dentro de um item de lista. */
+    public boolean caretInsideList() {
+        return textPane.getDocument() instanceof HTMLDocument doc
+                && enclosing(doc, textPane.getCaretPosition(), HTML.Tag.LI) != null;
+    }
+
+    /** A tecla ENTER, sem passar pelo teclado. Para as checagens exercitarem a quebra. */
+    public void pressEnter() {
+        Action enter = textPane.getActionMap().get("recados-estilo:ENTER");
+        if (enter != null) {
+            enter.actionPerformed(new ActionEvent(textPane, ActionEvent.ACTION_PERFORMED, ""));
+        }
+    }
+
+    private void clearCharacterStyles() {
         StyledDocument doc = textPane.getStyledDocument();
         int start = textPane.getSelectionStart();
         int end = textPane.getSelectionEnd();
@@ -785,15 +963,88 @@ public final class NoteFrame extends JFrame {
         StyleConstants.setItalic(plain, false);
         StyleConstants.setUnderline(plain, false);
         doc.setCharacterAttributes(start, end - start, plain, false);
-        scheduleSave();
     }
 
     /**
-     * A cor do texto vem da paleta da nota, nao do documento. Sem reaplicar aqui, o HTML traz
-     * de volta a cor de quando foi gravado e trocar a cor da nota deixava o texto na cor velha.
-     * Os links ficam de fora: azul de link nao e decoracao, e sinal de que da para clicar.
+     * As listas voltam a ser linhas de texto. Sem selecao, vale a nota toda -- ai o documento
+     * e remontado de uma vez, que e mais simples e mais seguro do que mexer elemento por
+     * elemento. Com selecao, cada <b>lista tocada</b> e trocada por inteiro.
+     *
+     * <p>Trocar a lista inteira, e nao o trecho selecionado, nao e preguica: remover o texto
+     * dos itens deixa o {@code <ul>} e os {@code <li>} vazios de pe, e o texto novo acaba
+     * <i>dentro</i> do item -- o marcador do primeiro item continuava na tela e as linhas
+     * saiam indentadas. Foi o que aconteceu na primeira versao disto.
+     *
+     * <p>So lista entra aqui. Paragrafo nao precisa ser desmontado (ja e uma linha), e
+     * desmontar o paragrafo inteiro tiraria o negrito de fora da selecao tambem.
      */
-    private void applyTextColor() {
+    private void unwrapBlocks() {
+        if (!(textPane.getDocument() instanceof HTMLDocument doc)) {
+            return;
+        }
+        int start = textPane.getSelectionStart();
+        int end = textPane.getSelectionEnd();
+        try {
+            if (start == end) {
+                String flat = HtmlText.flatten(HtmlText.body(htmlText()));
+                textPane.setText("<html><body>"
+                        + HtmlText.toParagraphs(flat) + "</body></html>");
+                textPane.setCaretPosition(0);
+                applyTypography();
+                return;
+            }
+            // de tras para frente: trocar uma lista mexe nos offsets do que vem depois dela
+            List<Element> lists = listsIn(doc, start, end);
+            for (int i = lists.size() - 1; i >= 0; i--) {
+                unwrapList(doc, lists.get(i));
+            }
+        } catch (BadLocationException | IOException e) {
+            System.err.println("Nao foi possivel limpar a formatacao: " + e.getMessage());
+        }
+    }
+
+    private void unwrapList(HTMLDocument doc, Element list) throws BadLocationException, IOException {
+        int from = list.getStartOffset();
+        int to = Math.min(list.getEndOffset(), doc.getLength());
+        String flat = HtmlText.flatten(HtmlText.body(rangeAsHtml(from, to)));
+        if (!flat.isBlank()) {
+            doc.setOuterHTML(list, HtmlText.toParagraphs(flat));
+        }
+    }
+
+    /** As listas que o trecho toca, das de fora para dentro, sem repetir lista aninhada. */
+    private static List<Element> listsIn(HTMLDocument doc, int start, int end) {
+        List<Element> found = new ArrayList<>();
+        collectLists(doc.getDefaultRootElement(), start, end, found);
+        return found;
+    }
+
+    private static void collectLists(Element element, int start, int end, List<Element> found) {
+        for (int i = 0; i < element.getElementCount(); i++) {
+            Element child = element.getElement(i);
+            if (child.getEndOffset() <= start || child.getStartOffset() >= end) {
+                continue;
+            }
+            String name = child.getName();
+            if (HTML.Tag.UL.toString().equals(name) || HTML.Tag.OL.toString().equals(name)) {
+                found.add(child); // sem descer: a lista de dentro sai junto com a de fora
+            } else {
+                collectLists(child, start, end, found);
+            }
+        }
+    }
+
+    /**
+     * Cor, fonte e tamanho vem da <b>nota</b>, e nao do documento. Sem reaplicar aqui, o HTML
+     * traz de volta o que estava gravado e trocar a cor (ou a fonte, ou o tamanho) deixava o
+     * texto como estava antes. Os links ficam com o azul de link: nao e decoracao, e sinal de
+     * que da para clicar.
+     *
+     * <p>Por atributo de caractere, e nao por regra de CSS: regra adicionada a folha de
+     * estilo de um documento que <b>ja existe</b> nao redesenha nada -- medido. Atributo
+     * redesenha na hora, e e o mesmo caminho que a cor da paleta sempre usou.
+     */
+    private void applyTypography() {
         Color color = note.palette().text();
         textPane.setForeground(color);
         textPane.setCaretColor(color);
@@ -801,8 +1052,11 @@ public final class NoteFrame extends JFrame {
         if (doc.getLength() == 0) {
             return;
         }
+        // Cor e tamanho, e nao a familia: quem marca trecho monoespacado e a tag <tt>, e
+        // estampar familia em todos os trechos apagaria essa marca a cada recoloracao.
         SimpleAttributeSet attrs = new SimpleAttributeSet();
         StyleConstants.setForeground(attrs, color);
+        StyleConstants.setFontSize(attrs, note.fontSize());
         doc.setCharacterAttributes(0, doc.getLength(), attrs, false);
 
         if (doc instanceof HTMLDocument html) {
@@ -821,10 +1075,63 @@ public final class NoteFrame extends JFrame {
         }
     }
 
+    /**
+     * A barra de rolagem pintada com a cor da nota: trilha da cor do corpo, e o polegar um
+     * cinza translucido que funciona sobre qualquer paleta. Sem setas nas pontas -- em nota
+     * pequena elas comem a barra toda, e ninguem rola uma nota clicando em seta.
+     */
+    private final class NoteScrollBarUI extends BasicScrollBarUI {
+
+        @Override
+        protected void configureScrollBarColors() {
+            trackColor = note.palette().body();
+            thumbColor = note.palette().header();
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return invisibleButton();
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return invisibleButton();
+        }
+
+        private JButton invisibleButton() {
+            JButton button = new JButton();
+            Dimension none = new Dimension(0, 0);
+            button.setPreferredSize(none);
+            button.setMinimumSize(none);
+            button.setMaximumSize(none);
+            button.setFocusable(false);
+            return button;
+        }
+
+        @Override
+        protected void paintTrack(Graphics g, JComponent component, Rectangle bounds) {
+            g.setColor(note.palette().body());
+            g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+
+        @Override
+        protected void paintThumb(Graphics g, JComponent component, Rectangle bounds) {
+            if (bounds.isEmpty() || !scrollbar.isEnabled()) {
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(0, 0, 0, 60));
+            g2.fillRoundRect(bounds.x + 2, bounds.y + 1,
+                    bounds.width - 4, bounds.height - 2, 5, 5);
+            g2.dispose();
+        }
+    }
+
     /** Os desenhos dos botoes: os quatro primeiros da barra de titulo, o resto do rodape. */
     private enum Glyph {
         PLUS, COLOR, PIN_ON, PIN_OFF, MINIMIZE,
-        BOLD, ITALIC, UNDERLINE, LIST, NUMBERED_LIST, LINK, ERASER
+        BOLD, ITALIC, UNDERLINE, MONOSPACED, LIST, NUMBERED_LIST, LINK, ERASER
     }
 
     /**
@@ -839,10 +1146,12 @@ public final class NoteFrame extends JFrame {
         private static final int SIZE = 22;
 
         /**
-         * Os da barra de formatacao sao menores: sao sete, e a 22px eles nao caberiam na
-         * nota mais estreita (160px) ao lado da alca de redimensionar.
+         * Os da barra de formatacao sao menores que os da barra de titulo, porque sao oito e
+         * tem de caber na nota mais estreita ao lado da alca: 7x18 mais 22 do "</>" mais 14
+         * da alca mais 2 da borda dao 164, e a nota minima tem 180. Ha checagem: o nono botao
+         * vai avisar que nao cabe, como o oitavo avisou.
          */
-        private static final int SMALL_SIZE = 20;
+        private static final int SMALL_SIZE = 18;
 
         private Glyph glyph;
         private final Runnable action;
@@ -926,6 +1235,28 @@ public final class NoteFrame extends JFrame {
                 case ITALIC -> drawLetter(g2, "I", Font.ITALIC, false);
                 case UNDERLINE -> drawLetter(g2, "U", Font.PLAIN, true);
 
+                // "</>" -- o sinal de codigo. Simbolo, e nao letra: as tres letras ao lado
+                // (B, I, U) ja ocupam essa forma, e um quarto caractere se perderia na fila.
+                // Este usa a largura toda do botao, e nao a caixa de 10px dos outros: tres
+                // elementos (seta, barra, seta) em 10px se encostam e viram borrao -- foi o
+                // que a primeira versao mostrou quando desenhei a barra num bitmap para ver.
+                case MONOSPACED -> {
+                    int largura = getWidth() - 4;
+                    int inicio = 2;
+                    int fim = inicio + largura;
+                    int meio = y + box / 2;
+                    int topo = y + 1;
+                    int base = y + box - 1;
+                    g2.drawLine(inicio + 4, topo, inicio, meio);
+                    g2.drawLine(inicio, meio, inicio + 4, base);
+                    g2.drawLine(fim - 4, topo, fim, meio);
+                    g2.drawLine(fim, meio, fim - 4, base);
+                    // quase vertical: com mais inclinacao o topo da barra encosta na seta
+                    // da direita, e a base encosta na da esquerda
+                    g2.drawLine(inicio + largura / 2 + 1, topo,
+                            inicio + largura / 2 - 1, base);
+                }
+
                 case LIST -> {
                     for (int row = 0; row < 3; row++) {
                         int ly = y + row * 4 + 1;
@@ -981,6 +1312,15 @@ public final class NoteFrame extends JFrame {
         bind("control W", () -> host.closeNote(this));
         bind("control D", () -> host.deleteNote(this));
         bind("control E", this::cycleColor);
+        // O "+" do teclado principal chega como shift no "=", e o do teclado numerico como
+        // ADD: os dois precisam estar aqui, senao a tecla funciona so num lado do teclado.
+        bind("control PLUS", this::zoomIn);
+        bind("control ADD", this::zoomIn);
+        bind("control EQUALS", this::zoomIn);
+        bind("control shift EQUALS", this::zoomIn);
+        bind("control MINUS", this::zoomOut);
+        bind("control SUBTRACT", this::zoomOut);
+        bind("control 0", this::resetZoom);
         bind("control T", this::togglePin);
         bind("control COMMA", () -> host.openSettings(this));
         bind("control shift A", host::showAll);
@@ -988,9 +1328,15 @@ public final class NoteFrame extends JFrame {
     }
 
     private void bind(String keyStroke, Runnable action) {
+        KeyStroke stroke = KeyStroke.getKeyStroke(keyStroke);
+        if (stroke == null) {
+            // nome de tecla que o Swing nao reconhece: melhor dizer alto do que perder o
+            // atalho em silencio (foi o risco ao cobrir as varias formas do "+")
+            System.err.println("Atalho ignorado, tecla desconhecida: " + keyStroke);
+            return;
+        }
         String name = "recados:" + keyStroke;
-        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-                .put(KeyStroke.getKeyStroke(keyStroke), name);
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(stroke, name);
         getRootPane().getActionMap().put(name, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -1062,9 +1408,13 @@ public final class NoteFrame extends JFrame {
         // Recolorir e consequencia de trocar a cor da nota, nao uma edicao do texto. Se
         // entrasse na pilha, o Ctrl+Z devolveria a cor antiga so no documento, e a nota
         // continuaria gravada com a cor nova -- os dois discordando.
-        withoutUndo(this::applyTextColor);
+        withoutUndo(this::applyTypography);
         paintForeground(header, palette.text());
         paintForeground(footer, palette.text()); // os botoes de formatacao tambem
+        if (scrollBar != null) {
+            scrollBar.setBackground(palette.body());
+            scrollBar.repaint(); // a trilha le a paleta na hora de pintar
+        }
         repaint();
     }
 
@@ -1077,7 +1427,165 @@ public final class NoteFrame extends JFrame {
         }
     }
 
-    private void cycleColor() {
+    /**
+     * Ctrl+ e Ctrl-: muda o tamanho da fonte <b>e a janela na mesma proporcao</b>, para o
+     * texto continuar ocupando o mesmo espaco relativo dentro da nota.
+     */
+    public void zoomIn() {
+        zoom(+1);
+    }
+
+    public void zoomOut() {
+        zoom(-1);
+    }
+
+    public void resetZoom() {
+        applyFontSize(Note.DEFAULT_FONT_SIZE);
+    }
+
+    private void zoom(int direction) {
+        int index = nearestSize(note.fontSize());
+        applyFontSize(FONT_SIZES[Math.max(0, Math.min(FONT_SIZES.length - 1, index + direction))]);
+    }
+
+    private static int nearestSize(int size) {
+        int best = 0;
+        for (int i = 1; i < FONT_SIZES.length; i++) {
+            if (Math.abs(FONT_SIZES[i] - size) < Math.abs(FONT_SIZES[best] - size)) {
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private void applyFontSize(int size) {
+        int previous = note.fontSize();
+        if (size == previous) {
+            return;
+        }
+        double ratio = (double) size / previous;
+        note.fontSize(size);
+        // A nota primeiro, a janela depois: o guarda do componentResized desfaz qualquer
+        // tamanho que nao seja o da nota, entao mudar a nota antes torna isto legitimo.
+        note.size((int) Math.round(note.width() * ratio),
+                (int) Math.round(note.height() * ratio));
+        setSize(note.width(), note.height());
+        applyTypography();
+        flush(); // escolha explicita do usuario: grava na hora
+    }
+
+    /**
+     * Liga e desliga a fonte de largura fixa <b>do trecho selecionado</b> -- sem selecao,
+     * da nota toda. E marcada com {@code <tt>}, e nao com atributo de fonte no trecho: por
+     * atributo o Swing desenha certo na tela mas o escritor grava {@code face=""}, e a fonte
+     * se perde no disco (medido). O {@code <tt>} sobrevive ao ida-e-volta e o navegador ja o
+     * entende como monoespacado.
+     *
+     * <p>Trabalha paragrafo por paragrafo porque {@code <tt>} e inline: envolver um trecho que
+     * atravessa paragrafos daria {@code <tt>a</p><p>b</tt>}, que nao e HTML.
+     */
+    public void toggleMonospaced() {
+        if (!(textPane.getDocument() instanceof HTMLDocument doc)) {
+            return;
+        }
+        int selectionStart = textPane.getSelectionStart();
+        int selectionEnd = textPane.getSelectionEnd();
+        int from = selectionStart == selectionEnd ? 0 : selectionStart;
+        int to = selectionStart == selectionEnd ? doc.getLength() : selectionEnd;
+        if (to <= from) {
+            return;
+        }
+        boolean turningOff = isMonospaced(doc, from);
+        asOneUndoStep(() -> {
+            try {
+                List<Element> paragraphs = paragraphsIn(doc, from, to);
+                // de tras para frente: remontar um paragrafo mexe nos offsets dos seguintes
+                for (int i = paragraphs.size() - 1; i >= 0; i--) {
+                    remarkParagraph(doc, paragraphs.get(i), from, to, !turningOff);
+                }
+            } catch (BadLocationException | IOException e) {
+                System.err.println("Nao foi possivel trocar a fonte do trecho: " + e.getMessage());
+            }
+        });
+        // Remontar o paragrafo derruba a selecao, e sem ela um segundo clique no botao nao
+        // desfaria o mesmo trecho. Remarcar e seguro: a marcacao mudou, o texto nao, entao os
+        // offsets continuam valendo.
+        if (selectionStart != selectionEnd) {
+            textPane.select(from, Math.min(to, textPane.getDocument().getLength()));
+        }
+        flush();
+    }
+
+    /**
+     * Remonta um paragrafo com a parte selecionada marcada (ou desmarcada) como monoespacada.
+     *
+     * <p>O paragrafo e reconstruido inteiro, de uma vez, em vez de trocar so o trecho: a
+     * insercao de HTML do Swing trata {@code <tt>} como bloco e <b>parte o paragrafo em
+     * tres</b> -- "antes MEIO depois" virava tres paragrafos. Remontando, o paragrafo continua
+     * um.
+     */
+    private void remarkParagraph(HTMLDocument doc, Element paragraph, int from, int to,
+            boolean monospaced) throws BadLocationException, IOException {
+        int start = paragraph.getStartOffset();
+        int end = Math.min(paragraph.getEndOffset() - 1, doc.getLength());
+        int a = Math.max(from, start);
+        int b = Math.min(to, end);
+        if (b <= a) {
+            return;
+        }
+        String before = a > start ? HtmlText.inline(rangeAsHtml(start, a)) : "";
+        String middle = HtmlText.withoutMonospace(HtmlText.inline(rangeAsHtml(a, b)));
+        String after = end > b ? HtmlText.inline(rangeAsHtml(b, end)) : "";
+        if (middle.isBlank()) {
+            return;
+        }
+        doc.setInnerHTML(paragraph,
+                before + (monospaced ? "<tt>" + middle + "</tt>" : middle) + after);
+    }
+
+    /** Se o cursor (ou o comeco da selecao) esta num trecho monoespacado. */
+    public boolean monospacedAtCaret() {
+        return textPane.getDocument() instanceof HTMLDocument doc
+                && isMonospaced(doc, textPane.getSelectionStart());
+    }
+
+    /**
+     * O Swing guarda {@code <tt>} como <b>atributo do caractere</b>, e nao como elemento na
+     * arvore -- como faz com {@code <b>} e {@code <a>}. Procurar por elemento aqui nunca acha
+     * nada, e foi assim que desligar a fonte nao funcionou na primeira versao.
+     */
+    private static boolean isMonospaced(HTMLDocument doc, int offset) {
+        int at = Math.min(Math.max(offset, 1), Math.max(doc.getLength() - 1, 0));
+        return doc.getCharacterElement(at).getAttributes().getAttribute(HTML.Tag.TT) != null;
+    }
+
+    /** Os paragrafos que o trecho toca. */
+    private static List<Element> paragraphsIn(HTMLDocument doc, int start, int end) {
+        List<Element> found = new ArrayList<>();
+        for (int at = start; at <= end; ) {
+            Element paragraph = doc.getParagraphElement(at);
+            if (found.isEmpty() || found.get(found.size() - 1) != paragraph) {
+                found.add(paragraph);
+            }
+            int next = paragraph.getEndOffset();
+            at = next > at ? next : at + 1;
+        }
+        return found;
+    }
+
+    /**
+     * Troca um trecho por HTML <b>inline</b>, sem mexer no bloco em volta. Diferente de
+     * {@link #replaceRange}: la, paragrafo que esvazia e substituido pelo HTML novo (a lista
+     * ocupa o lugar dele); aqui o paragrafo tem de continuar existindo, com o texto dentro.
+     */
+    private void replaceInline(HTMLDocument doc, int from, int to, String html, HTML.Tag tag)
+            throws BadLocationException {
+        doc.remove(from, to - from);
+        textPane.setCaretPosition(from);
+        applyStyle(new HTMLEditorKit.InsertHTMLTextAction("trecho", html, HTML.Tag.BODY, tag));
+    }
+
+    public void cycleColor() {
         note.colorIndex(Palette.next(note.colorIndex()));
         applyPalette();
         flush(); // escolha explicita do usuario: grava na hora
@@ -1150,6 +1658,15 @@ public final class NoteFrame extends JFrame {
         menu.add(item("Inserir lista", this::insertList));
         menu.add(item("Inserir lista numerada", this::insertNumberedList));
         menu.add(item("Inserir link...", this::promptLink));
+        menu.addSeparator();
+        // marcada quando o cursor (ou o comeco da selecao) esta num trecho monoespacado
+        JCheckBoxMenuItem mono = new JCheckBoxMenuItem("Fonte monoespacada (na selecao)");
+        mono.setSelected(monospacedAtCaret());
+        mono.addActionListener(e -> toggleMonospaced());
+        menu.add(mono);
+        menu.add(item("Aumentar o texto e a nota (Ctrl +)", this::zoomIn));
+        menu.add(item("Diminuir o texto e a nota (Ctrl -)", this::zoomOut));
+        menu.add(item("Tamanho normal (Ctrl 0)", this::resetZoom));
         menu.addSeparator();
         menu.add(item("Copiar tudo (com formatacao)", this::copyAll));
         menu.addSeparator();

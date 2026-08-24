@@ -17,3 +17,7 @@ out/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Relatorio de crash da JVM
+hs_err_pid*.log
+replay_pid*.log

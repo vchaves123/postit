@@ -1,4 +1,5 @@
 import com.recados.Note;
+import com.recados.Palette;
 import com.recados.NoteFrame;
 import com.recados.NoteStore;
 import com.recados.RecadosApp;
@@ -19,6 +20,90 @@ public final class WindowChecks {
         barraDeFormatacao();
         notaEmBranco();
         gravacaoTentaDeNovo();
+        barraDeRolagem();
+        zoomDeTextoEJanela();
+    }
+
+    /**
+     * A barra de rolagem usa a cor da nota. A do sistema chega cinza, e uma faixa cinza no
+     * meio de uma nota colorida se anuncia como "componente" em vez de parte do papel.
+     */
+    private static void barraDeRolagem() throws Exception {
+        Check.grupo("Barra de rolagem com a cor da nota");
+        Path base = Files.createTempDirectory("recados-rolagem");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.colorIndex(Palette.indexOf("Rosa"));
+        nota.text("texto\nque\npassa\ndo\ntamanho\nda\nnota\ne\nfaz\naparecer\na\nbarra");
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+
+        Check.that("a barra e pintada por nos, e estreita", frame.scrollBarStyled());
+        Check.that("e o fundo dela e a cor da nota",
+                frame.scrollBarBackground().equals(Palette.at(Palette.indexOf("Rosa")).body()));
+
+        // trocar a cor da nota tem de levar a barra junto
+        SwingUtilities.invokeAndWait(frame::cycleColor);
+        Check.that("trocar a cor repinta a barra",
+                frame.scrollBarBackground().equals(nota.palette().body()));
+        Check.that("e a cor mudou de verdade",
+                !nota.palette().name().equals("Rosa"));
+
+        SwingUtilities.invokeAndWait(frame::dispose);
+    }
+
+    /**
+     * Ctrl+ e Ctrl- mudam a fonte <b>e a janela na mesma proporcao</b>, para o texto
+     * continuar ocupando o mesmo espaco relativo dentro da nota. O tamanho fica gravado.
+     */
+    private static void zoomDeTextoEJanela() throws Exception {
+        Check.grupo("Zoom de texto e janela");
+        Path base = Files.createTempDirectory("recados-fonte");
+        NoteStore store = new NoteStore(base);
+        RecadosApp app = new RecadosApp(store);
+
+        Note nota = Note.create();
+        nota.text("tanto faz o texto");
+        nota.size(280, 260);
+        store.save(nota);
+        NoteFrame frame = abrir(nota, app);
+        Check.that("comeca no tamanho padrao", nota.fontSize() == Note.DEFAULT_FONT_SIZE);
+
+        SwingUtilities.invokeAndWait(frame::zoomIn);
+        Check.that("Ctrl+ aumentou a fonte", nota.fontSize() == 12);
+        Check.that("e a janela cresceu na mesma proporcao",
+                nota.width() == Math.round(280 * 12 / 11.0)
+                        && nota.height() == Math.round(260 * 12 / 11.0));
+        Check.that("a janela na tela acompanhou a nota",
+                frame.getWidth() == nota.width() && frame.getHeight() == nota.height());
+
+        SwingUtilities.invokeAndWait(frame::zoomOut);
+        Check.that("Ctrl- voltou a fonte", nota.fontSize() == Note.DEFAULT_FONT_SIZE);
+        Check.that("e a janela voltou ao tamanho de antes",
+                nota.width() == 280 && nota.height() == 260);
+
+        // o limite existe: fonte nao vira zero nem a janela some
+        for (int i = 0; i < 20; i++) {
+            SwingUtilities.invokeAndWait(frame::zoomOut);
+        }
+        Check.that("o menor tamanho de fonte tem piso", nota.fontSize() >= 8);
+        Check.that("e a janela nunca fica menor que o minimo",
+                nota.width() >= Note.MIN_WIDTH && nota.height() >= Note.MIN_HEIGHT);
+
+        SwingUtilities.invokeAndWait(frame::resetZoom);
+        Check.that("Ctrl 0 devolve o tamanho padrao",
+                nota.fontSize() == Note.DEFAULT_FONT_SIZE);
+
+        SwingUtilities.invokeAndWait(frame::flush);
+        String arquivo = Files.readString(base.resolve("notes").resolve(nota.id() + ".html"));
+        Check.that("gravou o tamanho no arquivo",
+                arquivo.contains("<meta name=\"recados:font-size\" content=\"11\">"));
+        Check.that("o tamanho volta do disco",
+                new NoteStore(base).loadAll().get(0).fontSize() == Note.DEFAULT_FONT_SIZE);
+
+        SwingUtilities.invokeAndWait(frame::dispose);
     }
 
     /**

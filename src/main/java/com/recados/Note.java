@@ -10,8 +10,12 @@ public final class Note {
 
     public static final int DEFAULT_WIDTH = 280;
     public static final int DEFAULT_HEIGHT = 260;
-    public static final int MIN_WIDTH = 160;
+    public static final int MIN_WIDTH = 180;
     public static final int MIN_HEIGHT = 150;
+
+    public static final int DEFAULT_FONT_SIZE = 11;
+    private static final int MIN_FONT_SIZE = 8;
+    private static final int MAX_FONT_SIZE = 28;
 
     private final String id;
     private final long createdAt;
@@ -23,6 +27,7 @@ public final class Note {
     private int width;
     private int height;
     private int colorIndex;
+    private int fontSize = DEFAULT_FONT_SIZE;
     private boolean alwaysOnTop;
     private boolean visible;
 
@@ -73,12 +78,24 @@ public final class Note {
     }
 
     /**
-     * O minimo de altura sobe de 120 para 150 por causa da barra de formatacao no rodape:
-     * abaixo disso a nota em foco nao sobraria espaco para texto nenhum.
+     * O minimo existe por causa da barra de formatacao no rodape. A altura: abaixo de 150 a
+     * nota em foco nao sobraria espaco para texto nenhum. A largura: os oito botoes mais a
+     * alca de redimensionar somam 164px, e 180 deixa alguma folga -- foi uma checagem que
+     * avisou quando o oitavo botao passou de 160.
      */
     public void size(int width, int height) {
         this.width = Math.max(MIN_WIDTH, width);
         this.height = Math.max(MIN_HEIGHT, height);
+    }
+
+    /**
+     * O tamanho da fonte, em pontos. Ctrl+ e Ctrl- mexem nisto -- e na janela junto, para o
+     * texto continuar ocupando o mesmo espaco relativo dentro da nota.
+     */
+    public int fontSize() { return fontSize; }
+
+    public void fontSize(int fontSize) {
+        this.fontSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, fontSize));
     }
 
     public int colorIndex() { return colorIndex; }
