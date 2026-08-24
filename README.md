@@ -75,6 +75,42 @@ java -cp target/recados.jar com.recados.Icons target/recados.ico
 
 Rodar pelo jar continua funcionando — só o ícone da barra de tarefas fica sendo o do Java.
 
+## Pacote instalável (GitHub Actions)
+
+O [workflow](.github/workflows/pacote.yml) roda em `windows-latest` a cada push em `main`,
+compila, **roda as checagens** e monta dois arquivos — os dois com um JRE recortado embutido,
+então a máquina que instala não precisa de Java nenhum:
+
+| Arquivo | O quê |
+| --- | --- |
+| `Recados-<versão>-windows.msi` | instalador: atalho no menu Iniciar e na área de trabalho, escolha de pasta, instalação **por usuário** (não pede administrador) |
+| `Recados-<versão>-windows-portavel.zip` | descompactar e rodar, sem instalar |
+
+Os dois ficam nos artefatos da execução. Numa tag `v1.2.3` o pacote sai como `1.2.3` e vira uma
+**release** com os dois anexados; fora de tag sai como `0.0.<número da execução>`, que mantém os
+pacotes de teste distinguíveis e nunca colide com uma versão publicada.
+
+Para publicar uma versão:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+Localmente, o mesmo empacotamento (é o script que o workflow chama, não uma segunda receita):
+
+```bash
+powershell -ExecutionPolicy Bypass -File package-installer.ps1 -Version 1.0.0
+```
+
+**Roda em Windows porque o produto é de Windows:** o `jpackage` só gera `.msi` na própria
+plataforma, e o ícone da barra de tarefas depende do executável nativo.
+
+O `.msi` precisa do **WiX Toolset 3** — o `jpackage` chama `candle.exe` e `light.exe`, que o WiX
+4 não tem mais. A imagem do runner já traz uma versão do 3 (hoje a 3.14), então o workflow
+procura o `candle.exe` e só instala se faltar: pedir uma versão fixa fazia o `choco` falhar por
+*downgrade*, e foi assim que a primeira execução caiu antes de empacotar. Sem WiX na máquina, o
+script local gera só o portável, avisa o que faltou e sai bem — o portável é útil por si.
+
 ## Iniciar com o Windows
 
 Abra **Configurações** (menu da bandeja, botão direito na nota, ou `Ctrl+,`) e marque
