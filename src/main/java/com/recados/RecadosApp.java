@@ -240,12 +240,35 @@ public final class RecadosApp implements NoteFrame.Host {
         new SettingsDialog(origin, store).setVisible(true);
     }
 
-    /** Traz todas de volta para a tela, inclusive as minimizadas. */
+    /**
+     * Poe todas as notas na tela: desminimiza as que estao guardadas, tira do estado
+     * iconificado as que o <b>Windows</b> minimizou (Win+D, "Mostrar area de trabalho",
+     * troca de monitor) e traz de volta as que ficaram numa tela que nao existe mais.
+     *
+     * <p>Cada um desses tres casos ja fez as notas "sumirem" sem terem sido minimizadas por
+     * ninguem, e o comando so tratava do primeiro: {@code toFront()} numa janela iconificada
+     * pelo sistema nao a traz de volta, e uma janela em coordenada de monitor desligado
+     * continua invisivel por mais que se peca foco para ela.
+     */
     @Override
     public void showAll() {
         for (Note note : new ArrayList<>(notes.values())) {
-            openFrame(note).toFront();
+            NoteFrame frame = openFrame(note);
+            rescueIfLost(frame);
+            frame.deiconify();
+            frame.toFront();
         }
+    }
+
+    /** Nota parada onde nao ha tela nenhuma volta para a tela principal. */
+    private void rescueIfLost(NoteFrame frame) {
+        Note note = frame.note();
+        if (isOnSomeScreen(note)) {
+            return;
+        }
+        placeIfNeeded(note);
+        frame.setLocation(note.x(), note.y());
+        store.save(note);
     }
 
     @Override

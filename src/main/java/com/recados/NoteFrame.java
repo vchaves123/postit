@@ -9,6 +9,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -1956,9 +1957,32 @@ public final class NoteFrame extends JFrame {
     }
 
     public void focusText() {
+        deiconify();
         toFront();
         requestFocus();
         textPane.requestFocusInWindow();
+    }
+
+    /**
+     * Tira a janela do estado minimizado <b>do Windows</b> -- o que o Win+D, o "Mostrar area
+     * de trabalho" e a troca de monitor fazem com todas as janelas abertas.
+     *
+     * <p>Nao confundir com o botao <i>-</i> da nota: aquele e nosso, tira a nota da tela e
+     * grava isso no arquivo. Este e o do sistema, que so encolhe a janela para
+     * {@code -32000,-32000} sem que o Recados fique sabendo. Por isso o "Mostrar todas" nao
+     * resolvia: {@code toFront()} numa janela iconificada nao a traz de volta -- e preciso
+     * limpar o bit ICONIFIED antes.
+     */
+    public void deiconify() {
+        int estado = getExtendedState();
+        if ((estado & Frame.ICONIFIED) != 0) {
+            setExtendedState(estado & ~Frame.ICONIFIED);
+        }
+    }
+
+    /** Se o Windows esta com esta janela minimizada. */
+    public boolean iconified() {
+        return (getExtendedState() & Frame.ICONIFIED) != 0;
     }
 
     // ------------------------------------------------- arrastar e redimensionar

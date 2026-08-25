@@ -4,6 +4,10 @@ import com.recados.NoteFrame;
 import com.recados.NoteStore;
 import com.recados.RecadosApp;
 import com.recados.Trace;
+import java.awt.Frame;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
@@ -26,6 +30,7 @@ public final class WindowChecks {
         zoomDeTextoEJanela();
         diarioDeBordo();
         listaComEnterEDesfazer();
+        mostrarTodasTrazDeVolta();
     }
 
     /**
@@ -450,6 +455,65 @@ public final class WindowChecks {
 
         SwingUtilities.invokeAndWait(frame::discard);
         vigia.interrupt();
+    }
+
+    /**
+     * "Mostrar todas" tem de dar conta dos tres jeitos de uma nota sumir sem ninguem a ter
+     * minimizado: guardada por nos, iconificada pelo Windows (Win+D, "Mostrar area de
+     * trabalho", troca de monitor) e parada numa tela que nao existe mais.
+     *
+     * <p>O caso do meio e o que passava batido: {@code toFront()} numa janela iconificada
+     * pelo sistema nao a traz de volta -- ela fica em {@code -32000,-32000}, viva e invisivel.
+     */
+    private static void mostrarTodasTrazDeVolta() throws Exception {
+        Check.grupo("Mostrar todas traz as notas de volta");
+        Path base = Files.createTempDirectory("recados-mostrar");
+        RecadosApp app = new RecadosApp(new NoteStore(base));
+
+        SwingUtilities.invokeAndWait(() -> app.newNote(null)); // o app abre e passa a conhecer
+        NoteFrame frame = ultimaJanela();
+        Check.that("o aplicativo abriu a nota", frame != null);
+
+        SwingUtilities.invokeAndWait(() -> frame.setExtendedState(Frame.ICONIFIED));
+        SwingUtilities.invokeAndWait(frame::deiconify);
+        Check.that("desiconificar tira o estado minimizado do sistema", !frame.iconified());
+
+        SwingUtilities.invokeAndWait(() -> frame.setExtendedState(Frame.ICONIFIED));
+        SwingUtilities.invokeAndWait(app::showAll);
+        Check.that("Mostrar todas desiconifica a janela", !frame.iconified());
+
+        // nota esquecida numa tela que nao existe mais
+        SwingUtilities.invokeAndWait(() -> {
+            frame.note().location(-30_000, -30_000);
+            frame.setLocation(-30_000, -30_000);
+        });
+        SwingUtilities.invokeAndWait(app::showAll);
+        Check.that("e traz de volta quem estava fora de qualquer tela",
+                emAlgumaTela(frame.note().x(), frame.note().y(),
+                        frame.note().width(), frame.note().height()));
+
+        SwingUtilities.invokeAndWait(frame::discard);
+    }
+
+    /** A janela de nota aberta mais recentemente, entre todas as do processo. */
+    private static NoteFrame ultimaJanela() {
+        NoteFrame achada = null;
+        for (java.awt.Frame f : java.awt.Frame.getFrames()) {
+            if (f instanceof NoteFrame nota && f.isDisplayable()) {
+                achada = nota;
+            }
+        }
+        return achada;
+    }
+
+    private static boolean emAlgumaTela(int x, int y, int largura, int altura) {
+        Rectangle rect = new Rectangle(x, y, largura, altura);
+        for (GraphicsDevice tela : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+            if (tela.getDefaultConfiguration().getBounds().intersects(rect)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Pinta a janela num quadro fora da tela: e o que forca o calculo de linhas. */
